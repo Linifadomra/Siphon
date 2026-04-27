@@ -1,3 +1,4 @@
+#define _POSIX_C_SOURCE 200809L
 #include "gc_dol.h"
 #include "gc_yaml.h"
 #include "gc_symbols.h"
@@ -13,9 +14,12 @@
 #if defined(_WIN32)
   #include <direct.h>
   #define MKDIR_ONE(p) _mkdir(p)
+  #define strdup _strdup
+  #define IS_REG_FILE(st) ((st).st_mode & _S_IFREG)
 #else
   #include <unistd.h>
   #define MKDIR_ONE(p) mkdir((p), 0755)
+  #define IS_REG_FILE(st) S_ISREG((st).st_mode)
 #endif
 
 #define CONFIG_VERSION "1.8.0"
@@ -63,7 +67,7 @@ static uint8_t* slurp(const char* path, size_t* out_size) {
 
 static int file_exists(const char* path) {
     struct stat st;
-    return stat(path, &st) == 0 && (st.st_mode & S_IFREG);
+    return stat(path, &st) == 0 && (st.st_mode & IS_REG_FILE(st));
 }
 
 typedef struct {
