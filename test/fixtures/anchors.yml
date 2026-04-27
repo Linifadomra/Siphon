@@ -1,0 +1,4 @@
+defaults: &d
+  retry: 3
+  timeout: 10
+client: *d

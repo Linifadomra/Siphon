@@ -1,0 +1,4 @@
+a: "line1\nline2"
+b: 'literal\n'
+c: plain string with spaces
+d: "\u0041"

@@ -1,0 +1,12 @@
+name: framework
+version: 1
+extract:
+- symbol: black_tex
+  binary: assets/black_tex.bin
+- symbol: msg_data
+  binary: assets/msg_data.bin
+modules:
+  - object: rels/foo.rel
+    extract:
+      - symbol: a
+        binary: a.bin
