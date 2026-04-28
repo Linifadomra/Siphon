@@ -15,7 +15,7 @@ endif()
 # == Options ==
 option(BUILD_SIPHON_BINARY  "Build the siphon CLI executable"  OFF)
 option(BUILD_SHARED_LIBS    "Build siphon as a shared library" OFF)
-option(BUILD_TESTING        "Build tests"                      OFF)
+option(SIPHON_BUILD_TESTS "Build siphon tests"                 OFF)
 
 # == Dependencies ==
 find_package(ZLIB REQUIRED)
@@ -44,10 +44,12 @@ if(NOT yaml_FOUND)
         find_library(YAML_LIBRARY  yaml)
         find_path   (YAML_INCLUDE  yaml.h)
         if(YAML_LIBRARY AND YAML_INCLUDE)
-            add_library(yaml UNKNOWN IMPORTED)
-            set_target_properties(yaml PROPERTIES
-                IMPORTED_LOCATION             "${YAML_LIBRARY}"
-                INTERFACE_INCLUDE_DIRECTORIES "${YAML_INCLUDE}")
+            if(NOT TARGET yaml)
+                add_library(yaml UNKNOWN IMPORTED)
+                set_target_properties(yaml PROPERTIES
+                    IMPORTED_LOCATION             "${YAML_LIBRARY}"
+                    INTERFACE_INCLUDE_DIRECTORIES "${YAML_INCLUDE}")
+            endif()
         else()
             message(FATAL_ERROR
                 "libyaml not found. Install it with your package manager"
@@ -97,7 +99,7 @@ endif()
 add_library(gc_yaml STATIC
     src/yaml/gc_yaml.c
 )
-target_include_directories(gc_yaml PUBLIC src/yaml)
+target_include_directories(gc_yaml PUBLIC include)
 target_link_libraries(gc_yaml PUBLIC ${YAML_TARGET} gc_util)
 
 add_library(gc_dol STATIC
@@ -121,7 +123,7 @@ else()
     SOVERSION ${PROJECT_VERSION_MAJOR})
 endif()
 
-if(BUILD_TESTING)
+if(SIPHON_BUILD_TESTS)
     enable_testing()
 
     add_executable(test_rarc test/test_rarc.c)

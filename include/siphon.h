@@ -29,7 +29,8 @@ SiphonError siphon_disc_inspect(const char* image, SiphonDiscInfo* out, SiphonLo
 SiphonError siphon_disc_extract(
     const char* image,
     const char* outdir,
-    const char* expect_id,
+    const char* const* expect_ids,
+    size_t num_ids,
     SiphonLogFn log,
     void* userdata
 );

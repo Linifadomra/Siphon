@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include "macros.h"
 
 static void mkdirs(const char* path) {
     char tmp[4096];
@@ -11,20 +12,20 @@ static void mkdirs(const char* path) {
     for (char* p = tmp + 1; *p; p++) {
         if (*p == '/' || *p == '\\') {
             *p = '\0';
-            _mkdir(tmp);
+            MKDIR_ONE(tmp);
             *p = '/';
         }
     }
-    _mkdir(tmp);
+    MKDIR_ONE(tmp);
 #else
     for (char* p = tmp + 1; *p; p++) {
         if (*p == '/') {
             *p = '\0';
-            mkdir(tmp, 0755);
+            MKDIR_ONE(tmp);
             *p = '/';
         }
     }
-    mkdir(tmp, 0755);
+    MKDIR_ONE(tmp);
 #endif
 }
 

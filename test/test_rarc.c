@@ -2,14 +2,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
-#if defined(_WIN32)
-  #include <direct.h>
-  #define MKDIR(p) _mkdir(p)
-#else
-  #include <unistd.h>
-  #define MKDIR(p) mkdir((p), 0755)
-#endif
 #include "gc_disc.h"
+#include "macros.h"
 
 /*
  * Build a minimal valid RARC blob in memory.
@@ -207,7 +201,7 @@ static int test_extract_all(void) {
     if (!arc) { free(buf); fprintf(stderr, "open failed\n"); return 1; }
 
     const char* outdir = "test/out";
-    MKDIR("test"); MKDIR(outdir);
+    MKDIR_ONE("test"); MKDIR_ONE(outdir);
 
     int rc = gc_arc_extract_all(arc, outdir);
     gc_arc_close(arc); free(buf);

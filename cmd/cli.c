@@ -52,7 +52,9 @@ static int cmd_disc(int argc, char* argv[]) {
 
     if (!image || !outdir) return usage();
 
-    SiphonError err = siphon_disc_extract(image, outdir, expect_id, cli_log, NULL);
+    const char* const* ids = expect_id ? &expect_id : NULL;
+    size_t num_ids = expect_id ? 1 : 0;
+    SiphonError err = siphon_disc_extract(image, outdir, ids, num_ids, cli_log, NULL);
     if (err) {
         fprintf(stderr, "Error: %s\n", siphon_error_str(err));
         return 1;

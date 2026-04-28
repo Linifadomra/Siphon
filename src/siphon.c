@@ -73,7 +73,8 @@ SiphonError siphon_disc_inspect(const char* image, SiphonDiscInfo* out, SiphonLo
 SiphonError siphon_disc_extract(
     const char* image,
     const char* outdir,
-    const char* expect_id,
+    const char* const* expect_ids,
+    size_t num_ids,
     SiphonLogFn log,
     void* userdata
 ) {
@@ -93,10 +94,19 @@ SiphonError siphon_disc_extract(
 
     const char* id = gc_disc_game_id(disc);
     siphon_log("Game ID: %s", id);
-    if (expect_id && strncmp(id, expect_id, 6) != 0) {
-        siphon_log("Error: game ID %s does not match expected %s", id, expect_id);
-        gc_disc_close(disc);
-        return SIPHON_ERR_ID_MISMATCH;
+    if (expect_ids && num_ids > 0) {
+        int matched = 0;
+        for (size_t i = 0; i < num_ids; i++) {
+            if (expect_ids[i] && strncmp(id, expect_ids[i], 6) == 0) {
+                matched = 1;
+                break;
+            }
+        }
+        if (!matched) {
+            siphon_log("Error: game ID %s does not match any of %zu expected IDs", id, num_ids);
+            gc_disc_close(disc);
+            return SIPHON_ERR_ID_MISMATCH;
+        }
     }
     siphon_log("Entries: %d", gc_disc_entry_count(disc));
 
