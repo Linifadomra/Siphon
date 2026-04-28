@@ -72,10 +72,6 @@ int gc_ciso_open(GCDisc* disc) {
     memcpy(cd->blockMap, hdr + CISO_MAP_OFFSET, CISO_MAP_SIZE);
 
     cd->blockCount = CISO_MAP_SIZE;
-    fseek(disc->file, 0, SEEK_END);
-    long fileSize = ftell(disc->file);
-    uint32_t maxBlocks = (uint32_t)((fileSize - CISO_HEADER_SIZE) / cd->blockSize + 1);
-    if (maxBlocks < cd->blockCount) cd->blockCount = maxBlocks;
     while (cd->blockCount > 0 && !cd->blockMap[cd->blockCount - 1])
         cd->blockCount--;
     cd->blockCount++;
