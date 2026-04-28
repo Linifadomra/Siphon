@@ -114,6 +114,7 @@ if(BUILD_SIPHON_BINARY)
     target_link_libraries(siphon PRIVATE gc_dol)
 else()
     add_library(siphon src/siphon.c)
+    target_include_directories(siphon PUBLIC include)
     target_link_libraries(siphon PUBLIC gc_dol)
     set_target_properties(siphon PROPERTIES
     VERSION   ${PROJECT_VERSION}
