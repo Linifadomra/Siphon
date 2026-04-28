@@ -1,4 +1,5 @@
 #include "gc_disc_internal.h"
+#include "siphon_log.h"
 #include "gc_rvz.h"
 #include <stdlib.h>
 #include <string.h>
@@ -238,7 +239,7 @@ int gc_wia_open(GCDisc* disc, int isRVZ) {
     uint8_t hdrs[0x48 + 0xDC];
     if (fseek(disc->file, 0, SEEK_SET) != 0) return -1;
     if (fread(hdrs, 1, sizeof(hdrs), disc->file) != sizeof(hdrs)) {
-        fprintf(stderr, "siphon: %s header truncated\n", kind);
+        siphon_log("%s header truncated", kind);
         return -1;
     }
 
@@ -253,7 +254,7 @@ int gc_wia_open(GCDisc* disc, int isRVZ) {
     wd->cachedGroupIdx = UINT32_MAX;
 
     if (wd->chunkSize == 0) {
-        fprintf(stderr, "siphon: %s chunk size is zero\n", kind);
+        siphon_log("%s chunk size is zero", kind);
         free(wd); return -1;
     }
 
@@ -275,7 +276,7 @@ int gc_wia_open(GCDisc* disc, int isRVZ) {
             fprintf(stderr,
                 "siphon: %s compression is not supported in this build "
                 "(only NONE and ZSTD are implemented). Re-encode the image to "
-                "zstd with Dolphin if you need to extract it.\n",
+                "zstd with Dolphin if you need to extract it.",
                 name);
             free(wd);
             return -1;

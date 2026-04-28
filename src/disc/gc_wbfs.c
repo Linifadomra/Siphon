@@ -1,4 +1,5 @@
 #include "gc_disc_internal.h"
+#include "siphon_log.h"
 #include <stdlib.h>
 #include <string.h>
 
@@ -50,7 +51,7 @@ int gc_wbfs_open(GCDisc* disc) {
     uint8_t hdr[12];
     if (fseek(disc->file, 0, SEEK_SET) != 0) return -1;
     if (fread(hdr, 1, 12, disc->file) != 12) {
-        fprintf(stderr, "siphon: WBFS header truncated\n");
+        siphon_log("WBFS header truncated");
         return -1;
     }
 
@@ -58,7 +59,7 @@ int gc_wbfs_open(GCDisc* disc) {
     uint8_t wbfsShift = hdr[9];
 
     if (hdShift > 30 || wbfsShift > 30) {
-        fprintf(stderr, "siphon: WBFS invalid sector shifts (hd=%u wbfs=%u)\n", hdShift, wbfsShift);
+        siphon_log("WBFS invalid sector shifts (hd=%u wbfs=%u)", hdShift, wbfsShift);
         return -1;
     }
 
@@ -84,7 +85,7 @@ int gc_wbfs_open(GCDisc* disc) {
     if (!rawTable) { free(wb->wlbaTable); free(wb); return -1; }
 
     if (fread(rawTable, 1, wb->wlbaCount * 2, disc->file) != wb->wlbaCount * 2) {
-        fprintf(stderr, "siphon: WBFS wlba table truncated\n");
+        siphon_log("WBFS wlba table truncated");
         free(rawTable); free(wb->wlbaTable); free(wb); return -1;
     }
 
@@ -103,8 +104,8 @@ int gc_wbfs_open(GCDisc* disc) {
     // won't have its real boot ID parse correctly. Cheap sanity: game ID starts
     // with a letter A-Z.
     if (disc->gameId[0] < 'A' || disc->gameId[0] > 'Z') {
-        fprintf(stderr, "siphon: WBFS disc doesn't look like a GC game (id='%s'); "
-                        "siphon assumes GC single-layer (0x%X bytes)\n",
+        siphon_log("WBFS disc doesn't look like a GC game (id='%s'); "
+                        "siphon assumes GC single-layer (0x%X bytes)",
                         disc->gameId, GC_DISC_SIZE);
         return -1;
     }

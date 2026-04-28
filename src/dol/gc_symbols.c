@@ -1,4 +1,5 @@
 #include "gc_symbols.h"
+#include "siphon_log.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -51,7 +52,7 @@ int gc_symbols_load(GCSymbolTable* tbl, const char* path) {
     memset(tbl, 0, sizeof(*tbl));
     FILE* f = fopen(path, "rb");
     if (!f) {
-        fprintf(stderr, "siphon: cannot open %s\n", path);
+        siphon_log("cannot open %s", path);
         return -1;
     }
 

@@ -1,8 +1,7 @@
 #ifndef SIPHON_H
 #define SIPHON_H
 
-#include <stddef.h> 
-#include "gc_disc.h"
+#include <stddef.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -18,6 +17,14 @@ typedef enum {
 } SiphonError;
 
 typedef void (*SiphonLogFn)(void* userdata, const char* msg);
+
+typedef struct {
+    char game_id[8];        // 6-char ID, null-terminated
+    char format[16];        // "ISO/GCM", "CISO", "GCZ", "WIA", "RVZ", "WBFS"
+    int  entry_count;
+} SiphonDiscInfo;
+
+SiphonError siphon_disc_inspect(const char* image, SiphonDiscInfo* out, SiphonLogFn log, void* userdata);
 
 SiphonError siphon_disc_extract(
     const char* image,

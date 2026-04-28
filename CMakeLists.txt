@@ -68,6 +68,11 @@ endif()
 
 # == Includes / Building ==
 
+add_library(gc_util STATIC
+    src/util/siphon_log.c
+)
+target_include_directories(gc_util PUBLIC src/util)
+
 add_library(gc_disc STATIC
     src/disc/gc_disc.c
     src/disc/gc_disc_fst.c
@@ -81,7 +86,7 @@ add_library(gc_disc STATIC
 )
 
 target_include_directories(gc_disc PUBLIC include PRIVATE src/disc)
-target_link_libraries(gc_disc PRIVATE ZLIB::ZLIB)
+target_link_libraries(gc_disc PRIVATE ZLIB::ZLIB PUBLIC gc_util)
 
 if(ZSTD_FOUND)
     target_include_directories(gc_disc PRIVATE ${ZSTD_INCLUDE_DIRS})
@@ -93,7 +98,7 @@ add_library(gc_yaml STATIC
     src/yaml/gc_yaml.c
 )
 target_include_directories(gc_yaml PUBLIC src/yaml)
-target_link_libraries(gc_yaml PUBLIC yaml)
+target_link_libraries(gc_yaml PUBLIC ${YAML_TARGET} gc_util)
 
 add_library(gc_dol STATIC
     src/dol/gc_symbols.c
