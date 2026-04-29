@@ -3,7 +3,13 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
-#include "macros.h"
+#if defined(_WIN32)
+  #include <direct.h>
+  #define MKDIR_ONE(p) _mkdir(p)
+#else
+  #include <unistd.h>
+  #define MKDIR_ONE(p) mkdir((p), 0755)
+#endif
 
 struct GCArc {
     unsigned char* data;

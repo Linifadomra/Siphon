@@ -1,5 +1,4 @@
 #include "gc_disc_internal.h"
-#include "siphon_log.h"
 #include <stdlib.h>
 #include <string.h>
 #include <zlib.h>
@@ -100,7 +99,7 @@ int gc_gcz_open(GCDisc* disc) {
     uint8_t hdr[0x20];
     if (fseek(disc->file, 0, SEEK_SET) != 0) return -1;
     if (fread(hdr, 1, 0x20, disc->file) != 0x20) {
-        siphon_log("GCZ header truncated");
+        fprintf(stderr, "siphon: GCZ header truncated\n");
         return -1;
     }
 
@@ -113,7 +112,7 @@ int gc_gcz_open(GCDisc* disc) {
     gz->cachedBlock = UINT32_MAX;
 
     if (gz->blockSize == 0 || gz->numBlocks == 0) {
-        siphon_log("GCZ has invalid block_size=%u num_blocks=%u",
+        fprintf(stderr, "siphon: GCZ has invalid block_size=%u num_blocks=%u\n",
                 gz->blockSize, gz->numBlocks);
         free(gz); return -1;
     }

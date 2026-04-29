@@ -1,9 +1,7 @@
 #include "gc_disc_internal.h"
-#include "siphon_log.h"
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
-#include "macros.h"
 
 static void mkdirs(const char* path) {
     char tmp[4096];
@@ -12,20 +10,20 @@ static void mkdirs(const char* path) {
     for (char* p = tmp + 1; *p; p++) {
         if (*p == '/' || *p == '\\') {
             *p = '\0';
-            MKDIR_ONE(tmp);
+            _mkdir(tmp);
             *p = '/';
         }
     }
-    MKDIR_ONE(tmp);
+    _mkdir(tmp);
 #else
     for (char* p = tmp + 1; *p; p++) {
         if (*p == '/') {
             *p = '\0';
-            MKDIR_ONE(tmp);
+            mkdir(tmp, 0755);
             *p = '/';
         }
     }
-    MKDIR_ONE(tmp);
+    mkdir(tmp, 0755);
 #endif
 }
 
@@ -89,7 +87,7 @@ int gc_disc_parse_fst(GCDisc* disc) {
                 dirLens[dirDepth] = dirLens[dirDepth - 1] + 1 + nameLen;
                 dirDepth++;
             } else {
-                siphon_log("FST directory nesting exceeds 256; aborting");
+                fprintf(stderr, "siphon: FST directory nesting exceeds 256; aborting\n");
                 return -1;
             }
         }
@@ -318,7 +316,7 @@ int gc_disc_extract_all(GCDisc* disc, const char* outputDir) {
         if (e->size <= BUF_SIZE) {
             if (disc->read(disc, e->discOffset, buf, e->size) < 0 ||
                 write_buf(path, buf, e->size) < 0) {
-                siphon_log("extract failed at %s (off=0x%X sz=%u)",
+                fprintf(stderr, "siphon: extract failed at %s (off=0x%X sz=%u)\n",
                         e->name, e->discOffset, e->size);
                 ret = -1;
                 break;
@@ -326,7 +324,7 @@ int gc_disc_extract_all(GCDisc* disc, const char* outputDir) {
         } else {
             FILE* out = fopen(path, "wb");
             if (!out) {
-                siphon_log("fopen failed: %s", path);
+                fprintf(stderr, "siphon: fopen failed: %s\n", path);
                 ret = -1;
                 break;
             }
@@ -336,7 +334,7 @@ int gc_disc_extract_all(GCDisc* disc, const char* outputDir) {
                 size_t chunk = remaining < BUF_SIZE ? remaining : BUF_SIZE;
                 if (disc->read(disc, off, buf, chunk) < 0 ||
                     fwrite(buf, 1, chunk, out) != chunk) {
-                    siphon_log("read/write failed: %s", e->name);
+                    fprintf(stderr, "siphon: read/write failed: %s\n", e->name);
                     fclose(out); ret = -1;
                     goto done;
                 }
