@@ -9,6 +9,16 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#ifdef _WIN32
+    #include <string.h>
+    #include <direct.h>
+
+    #define strcasecmp _stricmp
+    #define strncasecmp _strnicmp
+    #define strdup _strdup
+#else
+    #include <strings.h>
+#endif
 #include <sys/stat.h>
 #include <errno.h>
 #include "macros.h"
