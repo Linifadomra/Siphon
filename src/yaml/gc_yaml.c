@@ -1,4 +1,5 @@
 #include "gc_yaml.h"
+#include "siphon_log.h"
 #include <yaml.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -114,14 +115,14 @@ static int build_body(yaml_parser_t* p, GCYamlNode* into) {
 GCYamlNode* gc_yaml_parse_file(const char* path) {
     FILE* f = fopen(path, "rb");
     if (!f) {
-        fprintf(stderr, "siphon: cannot open %s\n", path);
+        siphon_log("cannot open %s", path);
         return NULL;
     }
 
     yaml_parser_t parser;
     if (!yaml_parser_initialize(&parser)) {
         fclose(f);
-        fprintf(stderr, "siphon: yaml_parser_initialize failed\n");
+        siphon_log("yaml_parser_initialize failed");
         return NULL;
     }
     yaml_parser_set_input_file(&parser, f);
@@ -176,7 +177,7 @@ GCYamlNode* gc_yaml_parse_file(const char* path) {
     }
 
     if (!ok) {
-        fprintf(stderr, "siphon: yaml parse error at line %lu col %lu: %s\n",
+        siphon_log("yaml parse error at line %lu col %lu: %s",
             (unsigned long)parser.problem_mark.line + 1,
             (unsigned long)parser.problem_mark.column + 1,
             parser.problem ? parser.problem : "(unknown)");

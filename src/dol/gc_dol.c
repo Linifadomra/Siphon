@@ -1,4 +1,5 @@
 #define _POSIX_C_SOURCE 200809L
+#include "siphon_log.h"
 #include "gc_dol.h"
 #include "gc_yaml.h"
 #include "gc_symbols.h"
@@ -8,23 +9,19 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#ifdef _MSC_VER
-#define strcasecmp _stricmp
+#ifdef _WIN32
+    #include <string.h>
+    #include <direct.h>
+
+    #define strcasecmp _stricmp
+    #define strncasecmp _strnicmp
+    #define strdup _strdup
 #else
-#include <strings.h>
+    #include <strings.h>
 #endif
 #include <sys/stat.h>
 #include <errno.h>
-#if defined(_WIN32)
-  #include <direct.h>
-  #define MKDIR_ONE(p) _mkdir(p)
-  #define strdup _strdup
-  #define IS_REG_FILE(st) ((st).st_mode & _S_IFREG)
-#else
-  #include <unistd.h>
-  #define MKDIR_ONE(p) mkdir((p), 0755)
-  #define IS_REG_FILE(st) S_ISREG((st).st_mode)
-#endif
+#include "macros.h"
 
 #define CONFIG_VERSION "1.8.0"
 
@@ -71,7 +68,7 @@ static uint8_t* slurp(const char* path, size_t* out_size) {
 
 static int file_exists(const char* path) {
     struct stat st;
-    return stat(path, &st) == 0 && (st.st_mode & IS_REG_FILE(st));
+    return stat(path, &st) == 0 && IS_REG_FILE(st);
 }
 
 typedef struct {
@@ -90,11 +87,11 @@ static int dol_load(DolFile* d, const char* path) {
     memset(d, 0, sizeof(*d));
     d->data = slurp(path, &d->size);
     if (!d->data) {
-        fprintf(stderr, "siphon: cannot read DOL %s\n", path);
+        siphon_log("cannot read DOL %s", path);
         return -1;
     }
     if (d->size < 0x100) {
-        fprintf(stderr, "siphon: DOL %s truncated\n", path);
+        siphon_log("DOL %s truncated", path);
         return -1;
     }
     for (int i = 0; i < 18; i++) {
@@ -141,7 +138,7 @@ typedef struct {
 static int parse_splits_sections(const char* path, char*** out_names, int* out_count) {
     FILE* f = fopen(path, "rb");
     if (!f) {
-        fprintf(stderr, "siphon: cannot open %s\n", path);
+        siphon_log("cannot open %s", path);
         return -1;
     }
     char** names = NULL;
@@ -183,7 +180,7 @@ static int parse_splits_sections(const char* path, char*** out_names, int* out_c
 static int rel_load(RelFile* r, const uint8_t* bytes, size_t n, const char* splits_path) {
     memset(r, 0, sizeof(*r));
     if (n < 0x40) {
-        fprintf(stderr, "siphon: REL header too small (%zu bytes from %s)\n", n, splits_path);
+        siphon_log("REL header too small (%zu bytes from %s)", n, splits_path);
         return -1;
     }
     r->data = (uint8_t*)malloc(n);
@@ -193,7 +190,7 @@ static int rel_load(RelFile* r, const uint8_t* bytes, size_t n, const char* spli
     uint32_t num_sections = be32(r->data + 0x0C);
     uint32_t section_info_off = be32(r->data + 0x10);
     if (section_info_off + num_sections * 8 > n) {
-        fprintf(stderr, "siphon: REL section info out of range (off=0x%x num=%u size=%zu) from %s\n",
+        siphon_log("REL section info out of range (off=0x%x num=%u size=%zu) from %s",
                 section_info_off, num_sections, n, splits_path);
         return -1;
     }
@@ -276,12 +273,12 @@ static int write_bytes(const char* out_dir, const char* binary_rel,
     }
     FILE* f = fopen(path, "wb");
     if (!f) {
-        fprintf(stderr, "siphon: cannot open %s for write\n", path);
+        siphon_log("cannot open %s for write", path);
         return -1;
     }
     if (fwrite(data, 1, n, f) != n) {
         fclose(f);
-        fprintf(stderr, "siphon: short write to %s\n", path);
+        siphon_log("short write to %s", path);
         return -1;
     }
     fclose(f);
@@ -338,7 +335,7 @@ static int read_rel(ArcCache* cache, const char* base,
     if (file_exists(arc_full)) {
         GCArc* arc = arc_cache_get(cache, arc_full);
         if (!arc) {
-            fprintf(stderr, "siphon: cannot open archive %s\n", arc_full);
+            siphon_log("cannot open archive %s", arc_full);
             return -1;
         }
         // gc_arc strips the archive's root dir from entry names, so a config
@@ -357,18 +354,18 @@ static int read_rel(ArcCache* cache, const char* base,
             }
         }
         if (found < 0) {
-            fprintf(stderr, "siphon: %s not found inside %s\n", inner_path, arc_full);
+            siphon_log("%s not found inside %s", inner_path, arc_full);
             return -1;
         }
         if (gc_arc_read_file(arc, found, (void**)out_data, out_size) != 0) {
-            fprintf(stderr, "siphon: cannot read entry from %s\n", arc_full);
+            siphon_log("cannot read entry from %s", arc_full);
             return -1;
         }
         snprintf(dep_path, dep_n, "%s", arc_full);
         return 0;
     }
 
-    fprintf(stderr, "siphon: cannot find %s (tried %s and %s)\n",
+    siphon_log("cannot find %s (tried %s and %s)",
             inner_path, dir_form, arc_full);
     return -1;
 }
@@ -378,7 +375,7 @@ static int maybe_decompress_yaz0(uint8_t** pp, size_t* pn) {
     uint8_t* out = NULL;
     size_t   out_n = 0;
     if (gc_yaz0_decompress(*pp, *pn, &out, &out_n) != 0) {
-        fprintf(stderr, "siphon: yaz0 decompress failed\n");
+        siphon_log("yaz0 decompress failed");
         return -1;
     }
     free(*pp);
@@ -399,15 +396,15 @@ static int resolve_dol(void* ctx, const char* name, uint32_t* file_off, uint32_t
     ResolveCtx* c = (ResolveCtx*)ctx;
     const GCSymbol* s = gc_symbols_find(c->syms, name);
     if (!s) {
-        fprintf(stderr, "siphon: symbol %s not found in DOL symbols\n", name);
+        siphon_log("symbol %s not found in DOL symbols", name);
         return -1;
     }
     if (s->size == 0) {
-        fprintf(stderr, "siphon: symbol %s has zero size\n", name);
+        siphon_log("symbol %s has zero size", name);
         return -1;
     }
     if (dol_va_to_file(c->dol, s->address, s->size, file_off) != 0) {
-        fprintf(stderr, "siphon: symbol %s @ 0x%08x not in any DOL section\n", name, s->address);
+        siphon_log("symbol %s @ 0x%08x not in any DOL section", name, s->address);
         return -1;
     }
     *size = s->size;
@@ -418,15 +415,15 @@ static int resolve_rel(void* ctx, const char* name, uint32_t* file_off, uint32_t
     ResolveCtx* c = (ResolveCtx*)ctx;
     const GCSymbol* s = gc_symbols_find(c->syms, name);
     if (!s) {
-        fprintf(stderr, "siphon: symbol %s not found in REL symbols\n", name);
+        siphon_log("symbol %s not found in REL symbols", name);
         return -1;
     }
     if (s->size == 0) {
-        fprintf(stderr, "siphon: symbol %s has zero size\n", name);
+        siphon_log("symbol %s has zero size", name);
         return -1;
     }
     if (rel_resolve(c->rel, s->section, s->address, s->size, file_off) != 0) {
-        fprintf(stderr, "siphon: symbol %s in section %s not in REL\n", name, s->section);
+        siphon_log("symbol %s in section %s not in REL", name, s->section);
         return -1;
     }
     *size = s->size;
@@ -478,7 +475,7 @@ int gc_dol_split(const char* yaml_path, const char* out_dir) {
     const char* object_rel  = gc_yaml_get_str(cfg, "object");
     const char* sym_rel     = gc_yaml_get_str(cfg, "symbols");
     if (!object_base || !object_rel || !sym_rel) {
-        fprintf(stderr, "siphon: config missing object_base/object/symbols\n");
+        siphon_log("config missing object_base/object/symbols");
         gc_yaml_free(cfg);
         return -1;
     }
@@ -501,7 +498,7 @@ int gc_dol_split(const char* yaml_path, const char* out_dir) {
     sl_push(&deps, sym_rel);
 
     if (mkpath(out_dir) != 0) {
-        fprintf(stderr, "siphon: cannot mkdir %s\n", out_dir);
+        siphon_log("cannot mkdir %s", out_dir);
         gc_symbols_free(&dol_syms); dol_free(&dol); gc_yaml_free(cfg);
         sl_free(&deps);
         return -1;
@@ -511,7 +508,7 @@ int gc_dol_split(const char* yaml_path, const char* out_dir) {
     snprintf(json_path, sizeof(json_path), "%s/config.json", out_dir);
     FILE* jf = fopen(json_path, "wb");
     if (!jf) {
-        fprintf(stderr, "siphon: cannot open %s for write\n", json_path);
+        siphon_log("cannot open %s for write", json_path);
         gc_symbols_free(&dol_syms); dol_free(&dol); gc_yaml_free(cfg);
         sl_free(&deps);
         return -1;

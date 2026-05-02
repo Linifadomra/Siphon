@@ -1,4 +1,5 @@
 #include "gc_disc_internal.h"
+#include "siphon_log.h"
 #include <stdlib.h>
 #include <string.h>
 
@@ -55,7 +56,7 @@ int gc_ciso_open(GCDisc* disc) {
     uint8_t hdr[CISO_HEADER_SIZE];
     if (fseek(disc->file, 0, SEEK_SET) != 0) return -1;
     if (fread(hdr, 1, CISO_HEADER_SIZE, disc->file) != CISO_HEADER_SIZE) {
-        fprintf(stderr, "siphon: CISO header truncated\n");
+        siphon_log("CISO header truncated");
         return -1;
     }
 
@@ -64,17 +65,13 @@ int gc_ciso_open(GCDisc* disc) {
 
     cd->blockSize = gc_le32(hdr + 4);
     if (cd->blockSize == 0) {
-        fprintf(stderr, "siphon: CISO block size is zero\n");
+        siphon_log("CISO block size is zero");
         free(cd); return -1;
     }
 
     memcpy(cd->blockMap, hdr + CISO_MAP_OFFSET, CISO_MAP_SIZE);
 
     cd->blockCount = CISO_MAP_SIZE;
-    fseek(disc->file, 0, SEEK_END);
-    long fileSize = ftell(disc->file);
-    uint32_t maxBlocks = (uint32_t)((fileSize - CISO_HEADER_SIZE) / cd->blockSize + 1);
-    if (maxBlocks < cd->blockCount) cd->blockCount = maxBlocks;
     while (cd->blockCount > 0 && !cd->blockMap[cd->blockCount - 1])
         cd->blockCount--;
     cd->blockCount++;
