@@ -3,9 +3,11 @@
 #include <stdlib.h>
 #include <string.h>
 #include "gc_disc.h"
-#include "gc_dol.h"
-#include "gc_yaz0.h"
+#include <confluence/dol.h>
+#include <confluence/yaz0.h>
+#include <confluence/rarc.h>
 #include "siphon_log.h"
+#include "disc/gc_dol_split.h"
 
 static void install_logger(SiphonLogFn fn, void* ud) {
     siphon_log_set((siphon_log_fn)fn, ud);

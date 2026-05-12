@@ -1,9 +1,9 @@
+#include <confluence/macros.h>
 #include "gc_disc_internal.h"
 #include "siphon_log.h"
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
-#include "macros.h"
 
 static void mkdirs(const char* path) {
     char tmp[4096];

@@ -18,6 +18,7 @@ option(BUILD_SHARED_LIBS    "Build siphon as a shared library" OFF)
 option(SIPHON_BUILD_TESTS "Build siphon tests"                 OFF)
 
 # == Dependencies ==
+find_package(Confluence REQUIRED)
 find_package(ZLIB REQUIRED)
 find_package(PkgConfig)
 if(PkgConfig_FOUND)
@@ -83,12 +84,11 @@ add_library(gc_disc STATIC
     src/disc/gc_gcz.c
     src/disc/gc_wia.c
     src/disc/gc_wbfs.c
-    src/disc/gc_rarc.c
     src/disc/gc_rvz.c
 )
 
 target_include_directories(gc_disc PUBLIC include PRIVATE src/disc)
-target_link_libraries(gc_disc PRIVATE ZLIB::ZLIB PUBLIC gc_util)
+target_link_libraries(gc_disc PRIVATE Confluence::confluence ZLIB::ZLIB PUBLIC gc_util)
 
 if(ZSTD_FOUND)
     target_include_directories(gc_disc PRIVATE ${ZSTD_INCLUDE_DIRS})
@@ -105,11 +105,9 @@ target_link_libraries(gc_yaml PUBLIC ${YAML_TARGET} gc_util)
 add_library(gc_dol STATIC
     src/dol/gc_symbols.c
     src/dol/gc_json.c
-    src/dol/gc_yaz0.c
-    src/dol/gc_dol.c
 )
 target_include_directories(gc_dol PUBLIC include src/dol)
-target_link_libraries(gc_dol PUBLIC gc_yaml gc_disc)
+target_link_libraries(gc_dol PUBLIC Confluence::confluence gc_yaml gc_disc)
 
 if(BUILD_SIPHON_BINARY)
     add_executable(siphon cmd/cli.c src/siphon.c)
