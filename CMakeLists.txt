@@ -88,7 +88,7 @@ add_library(gc_disc STATIC
 )
 
 target_include_directories(gc_disc PUBLIC include PRIVATE src/disc)
-target_link_libraries(gc_disc PRIVATE Confluence::confluence ZLIB::ZLIB PUBLIC gc_util)
+target_link_libraries(gc_disc PRIVATE ZLIB::ZLIB PUBLIC gc_util Confluence::confluence)
 
 if(ZSTD_FOUND)
     target_include_directories(gc_disc PRIVATE ${ZSTD_INCLUDE_DIRS})
