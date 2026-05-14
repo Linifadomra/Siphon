@@ -7,7 +7,6 @@
 #include <confluence/yaz0.h>
 #include <confluence/rarc.h>
 #include "siphon_log.h"
-#include "disc/gc_dol_split.h"
 
 static void install_logger(SiphonLogFn fn, void* ud) {
     siphon_log_set((siphon_log_fn)fn, ud);
@@ -191,17 +190,6 @@ SiphonError siphon_arc_copy(const char* archive, const char* inner, const char* 
         siphon_log("Error: write %s failed", out_path);
         return SIPHON_ERR_IO;
     }
-    return SIPHON_OK;
-}
-
-SiphonError siphon_dol_split(const char* config, const char* outdir, SiphonLogFn log, void* userdata) {
-    install_logger(log, userdata);
-    int rc = gc_dol_split(config, outdir);
-    if (rc != 0) {
-        siphon_log("Error: dol split failed");
-        return SIPHON_ERR_IO;
-    }
-    siphon_log("DOL split complete");
     return SIPHON_OK;
 }
 

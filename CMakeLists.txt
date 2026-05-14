@@ -18,6 +18,8 @@ option(BUILD_SHARED_LIBS    "Build siphon as a shared library" OFF)
 option(SIPHON_BUILD_TESTS "Build siphon tests"                 OFF)
 
 # == Dependencies ==
+set(CONFLUENCE_DOL_YAML OFF CACHE BOOL "" FORCE)
+
 find_package(Confluence REQUIRED)
 find_package(ZLIB REQUIRED)
 find_package(PkgConfig)
@@ -31,42 +33,6 @@ if(NOT ZSTD_FOUND)
     if(ZSTD_LIBRARIES AND ZSTD_INCLUDE_DIRS)
         set(ZSTD_FOUND TRUE)
     endif()
-endif()
-
-find_package(yaml QUIET)
-if(NOT yaml_FOUND)
-    find_package(PkgConfig QUIET)
-
-    if(PkgConfig_FOUND)
-        pkg_check_modules(YAML IMPORTED_TARGET yaml-0.1)
-    endif()
-
-    if(NOT YAML_FOUND)
-        find_library(YAML_LIBRARY  yaml)
-        find_path   (YAML_INCLUDE  yaml.h)
-        if(YAML_LIBRARY AND YAML_INCLUDE)
-            if(NOT TARGET yaml)
-                add_library(yaml UNKNOWN IMPORTED)
-                set_target_properties(yaml PROPERTIES
-                    IMPORTED_LOCATION             "${YAML_LIBRARY}"
-                    INTERFACE_INCLUDE_DIRECTORIES "${YAML_INCLUDE}")
-            endif()
-        else()
-            message(FATAL_ERROR
-                "libyaml not found. Install it with your package manager"
-                "or point YAML_LIBRARY and YAML_INCLUDE at your custom installation.")
-        endif()
-    endif()
-endif()
-
-if(TARGET PkgConfig::YAML)
-    add_library(yaml_iface INTERFACE IMPORTED)
-    target_link_libraries(yaml_iface INTERFACE PkgConfig::YAML)
-    set(YAML_TARGET yaml_iface)
-elseif(TARGET yaml)
-    set(YAML_TARGET yaml)
-else()
-    message(FATAL_ERROR "Could not resolve a libyaml target.")
 endif()
 
 # == Includes / Building ==
@@ -96,18 +62,12 @@ if(ZSTD_FOUND)
     target_link_libraries(gc_disc PUBLIC ${ZSTD_LIBRARIES})
 endif()
 
-add_library(gc_yaml STATIC
-    src/yaml/gc_yaml.c
-)
-target_include_directories(gc_yaml PUBLIC include)
-target_link_libraries(gc_yaml PUBLIC ${YAML_TARGET} gc_util)
-
 add_library(gc_dol STATIC
     src/dol/gc_symbols.c
     src/dol/gc_json.c
 )
 target_include_directories(gc_dol PUBLIC include src/dol)
-target_link_libraries(gc_dol PUBLIC Confluence::confluence gc_yaml gc_disc)
+target_link_libraries(gc_dol PUBLIC Confluence::confluence gc_disc)
 
 if(BUILD_SIPHON_BINARY)
     add_executable(siphon cmd/cli.c src/siphon.c)
@@ -127,16 +87,8 @@ if(SIPHON_BUILD_TESTS)
     add_executable(test_rarc test/test_rarc.c)
     target_link_libraries(test_rarc PRIVATE gc_disc)
     add_test(
-        NAME test_rarc 
+        NAME test_rarc
         COMMAND test_rarc
-        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-    )
-
-    add_executable(test_yaml test/test_yaml.c)
-    target_link_libraries(test_yaml PRIVATE gc_yaml)
-    add_test(
-        NAME test_yaml 
-        COMMAND test_yaml
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
     )
 endif()
