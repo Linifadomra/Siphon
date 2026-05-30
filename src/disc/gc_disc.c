@@ -1,5 +1,4 @@
 #include "gc_disc_internal.h"
-#include "siphon_log.h"
 #include <stdlib.h>
 #include <string.h>
 
@@ -8,18 +7,6 @@ static const uint8_t MAGIC_WIA[4]  = {'W','I','A',0x01};
 static const uint8_t MAGIC_RVZ[4]  = {'R','V','Z',0x01};
 static const uint8_t MAGIC_GCZ[4]  = {0x01,0xC0,0x0B,0xB1};
 static const uint8_t MAGIC_WBFS[4] = {'W','B','F','S'};
-
-static const char* format_name(GCDiscFormat fmt) {
-    switch (fmt) {
-        case GC_FORMAT_ISO:  return "ISO";
-        case GC_FORMAT_CISO: return "CISO";
-        case GC_FORMAT_GCZ:  return "GCZ";
-        case GC_FORMAT_WIA:  return "WIA";
-        case GC_FORMAT_RVZ:  return "RVZ";
-        case GC_FORMAT_WBFS: return "WBFS";
-        default:             return "unknown";
-    }
-}
 
 GCDiscFormat gc_disc_detect_format(const char* path) {
     FILE* f = fopen(path, "rb");
@@ -69,7 +56,6 @@ GCDisc* gc_disc_open(const char* path) {
     }
 
     if (err != 0) {
-        siphon_log("gc_disc_open: %s opener failed for %s", format_name(fmt), path);
         fclose(disc->file);
         free(disc);
         return NULL;
