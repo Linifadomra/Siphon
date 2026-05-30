@@ -55,7 +55,18 @@ j=i*4;k=(i-Nk)*4;
 RoundKey[j+0]=RoundKey[k+0]^tempa[0];RoundKey[j+1]=RoundKey[k+1]^tempa[1];RoundKey[j+2]=RoundKey[k+2]^tempa[2];RoundKey[j+3]=RoundKey[k+3]^tempa[3];
 }
 }
-void AES_init_ctx_iv(struct AES_ctx*ctx,const uint8_t*key,const uint8_t*iv){KeyExpansion(ctx->RoundKey,key);memcpy(ctx->Iv,iv,AES_BLOCKLEN);}
+void AES_init_ctx_key(struct AES_ctx* ctx, const uint8_t* key) {
+    KeyExpansion(ctx->RoundKey, key);
+}
+
+void AES_ctx_set_iv(struct AES_ctx* ctx, const uint8_t* iv) {
+    memcpy(ctx->Iv, iv, AES_BLOCKLEN);
+}
+
+void AES_init_ctx_iv(struct AES_ctx* ctx, const uint8_t* key, const uint8_t* iv) {
+    AES_init_ctx_key(ctx, key);
+    AES_ctx_set_iv(ctx, iv);
+}
 static void AddRoundKey(uint8_t round,state_t*state,const uint8_t*RoundKey){
 uint8_t i,j;for(i=0;i<4;++i)for(j=0;j<4;++j)(*state)[i][j]^=RoundKey[(round*Nb*4)+(i*Nb)+j];
 }

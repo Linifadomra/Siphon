@@ -4,7 +4,7 @@
 #include "gc_disc.h"
 #include <stdio.h>
 
-typedef int (*gc_read_fn)(GCDisc* disc, uint32_t offset, void* buf, size_t size);
+typedef int (*gc_read_fn)(GCDisc* disc, uint64_t offset, void* buf, size_t size);
 typedef void (*gc_close_fn)(GCDisc* disc);
 
 struct GCDisc {

@@ -1,8 +1,9 @@
 #include "gc_disc_internal.h"
+#include <stdio.h>
 #include <string.h>
 
-static int iso_read(GCDisc* disc, uint32_t offset, void* buf, size_t size) {
-    if (fseek(disc->file, offset, SEEK_SET) != 0) return -1;
+static int iso_read(GCDisc* disc, uint64_t offset, void* buf, size_t size) {
+    if (fseeko(disc->file, (off_t)offset, SEEK_SET) != 0) return -1;
     if (fread(buf, 1, size, disc->file) != size) return -1;
     return 0;
 }

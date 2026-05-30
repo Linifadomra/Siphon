@@ -14,7 +14,7 @@ typedef struct {
     uint32_t* presentBefore;
 } CISOData;
 
-static int ciso_read(GCDisc* disc, uint32_t offset, void* buf, size_t size) {
+static int ciso_read(GCDisc* disc, uint64_t offset, void* buf, size_t size) {
     CISOData* cd = (CISOData*)disc->formatData;
     uint8_t* out = (uint8_t*)buf;
     size_t remaining = size;
@@ -36,7 +36,7 @@ static int ciso_read(GCDisc* disc, uint32_t offset, void* buf, size_t size) {
         }
 
         out       += chunk;
-        offset    += (uint32_t)chunk;
+        offset    += chunk;
         remaining -= chunk;
     }
 

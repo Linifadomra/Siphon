@@ -30,8 +30,14 @@ static void mkdirs(const char* path) {
 }
 
 int gc_disc_parse_fst(GCDisc* disc) {
-    if (gc_wii_wrap(disc) != 0) return -1;
-    if (disc->read(disc, 0, disc->boot, 0x440) < 0) return -1;
+    if (gc_wii_wrap(disc) != 0) {
+        siphon_log("FST: gc_wii_wrap failed");
+        return -1;
+    }
+    if (disc->read(disc, 0, disc->boot, 0x440) < 0) {
+        siphon_log("FST: boot.bin read failed");
+        return -1;
+    }
 
     memcpy(disc->gameId, disc->boot, 6);
     disc->gameId[6] = '\0';
@@ -40,23 +46,44 @@ int gc_disc_parse_fst(GCDisc* disc) {
     disc->fstOffset = gc_be32(disc->boot + 0x424) << disc->offsetShift;
     disc->fstSize   = gc_be32(disc->boot + 0x428) << disc->offsetShift;
 
-    if (disc->read(disc, 0x440, disc->bi2, 0x2000) < 0) return -1;
+    if (disc->read(disc, 0x440, disc->bi2, 0x2000) < 0) {
+        siphon_log("FST: bi2 read failed");
+        return -1;
+    }
 
     uint8_t appHdr[0x20];
-    if (disc->read(disc, 0x2440, appHdr, 0x20) < 0) return -1;
+    if (disc->read(disc, 0x2440, appHdr, 0x20) < 0) {
+        siphon_log("FST: apploader header read failed");
+        return -1;
+    }
     uint32_t appCode    = gc_be32(appHdr + 0x14);
     uint32_t appTrailer = gc_be32(appHdr + 0x18);
     disc->apploaderSize = 0x20 + appCode + appTrailer;
     disc->apploader = (uint8_t*)malloc(disc->apploaderSize);
-    if (!disc->apploader) return -1;
-    if (disc->read(disc, 0x2440, disc->apploader, disc->apploaderSize) < 0) return -1;
+    if (!disc->apploader) {
+        siphon_log("FST: apploader alloc failed (size=%u)", disc->apploaderSize);
+        return -1;
+    }
+    if (disc->read(disc, 0x2440, disc->apploader, disc->apploaderSize) < 0) {
+        siphon_log("FST: apploader read failed");
+        return -1;
+    }
 
     disc->fstData = (uint8_t*)malloc(disc->fstSize);
-    if (!disc->fstData) return -1;
-    if (disc->read(disc, disc->fstOffset, disc->fstData, disc->fstSize) < 0) return -1;
+    if (!disc->fstData) {
+        siphon_log("FST: fst alloc failed (size=0x%X)", disc->fstSize);
+        return -1;
+    }
+    if (disc->read(disc, disc->fstOffset, disc->fstData, disc->fstSize) < 0) {
+        siphon_log("FST: fst read failed at 0x%X size=0x%X", disc->fstOffset, disc->fstSize);
+        return -1;
+    }
 
     disc->entryCount = gc_be32(disc->fstData + 8);
-    if (disc->entryCount == 0 || disc->entryCount > 100000) return -1;
+    if (disc->entryCount == 0 || disc->entryCount > 100000) {
+        siphon_log("FST: invalid entry count %u", disc->entryCount);
+        return -1;
+    }
 
     size_t strOff = disc->entryCount * 12;
     disc->stringTable = (const char*)(disc->fstData + strOff);
@@ -284,18 +311,24 @@ int gc_disc_extract_all(GCDisc* disc, const char* outputDir) {
         if (disc->entries[i].type == GC_ENTRY_FILE) fileCount++;
     }
 
+    if (fileCount == 0) {
+        free(buf);
+        return -1;
+    }
+
     GCEntry* sorted = (GCEntry*)malloc(fileCount * sizeof(GCEntry));
     if (!sorted) { free(buf); return -1; }
 
     int si = 0;
     for (uint32_t i = 1; i < disc->entryCount; i++) {
         if (disc->entries[i].type == GC_ENTRY_FILE)
-            sorted[si++] = disc->entries[i];
+        sorted[si++] = disc->entries[i];
     }
 
     qsort(sorted, fileCount, sizeof(GCEntry), cmp_by_offset);
 
     char lastDir[4096] = {0};
+    uint64_t bytesDone = 0;
 
     int ret = 0;
     for (int i = 0; i < fileCount; i++) {
@@ -346,8 +379,18 @@ int gc_disc_extract_all(GCDisc* disc, const char* outputDir) {
             }
             fclose(out);
         }
+        bytesDone += e->size;
+        if ((i + 1) % 100 == 0 || i + 1 == fileCount) {
+            siphon_log("extract progress: %d/%d (%.1f MB written)",
+                       i + 1, fileCount, (double)bytesDone / (1024.0 * 1024.0));
+        }
     }
 done:
+
+    if (ret == 0) {
+        siphon_log("extract done: %d files, %.1f MB", fileCount,
+                   (double)bytesDone / (1024.0 * 1024.0));
+    }
 
     free(sorted);
     free(buf);

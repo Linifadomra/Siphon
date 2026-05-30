@@ -60,7 +60,7 @@ static int gcz_decompress_block(GCDisc* disc, GCZData* gz, uint32_t blockIdx) {
     return 0;
 }
 
-static int gcz_read(GCDisc* disc, uint32_t offset, void* buf, size_t size) {
+static int gcz_read(GCDisc* disc, uint64_t offset, void* buf, size_t size) {
     GCZData* gz = (GCZData*)disc->formatData;
     uint8_t* out = (uint8_t*)buf;
     size_t remaining = size;
@@ -79,7 +79,7 @@ static int gcz_read(GCDisc* disc, uint32_t offset, void* buf, size_t size) {
         }
 
         out       += chunk;
-        offset    += (uint32_t)chunk;
+        offset    += chunk;
         remaining -= chunk;
     }
 

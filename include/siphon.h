@@ -35,6 +35,8 @@ SiphonError siphon_disc_extract(
     void* userdata
 );
 
+const char* siphon_last_log(void);
+
 SiphonError siphon_arc_extract(const char* archive, const char* outdir, SiphonLogFn log, void* userdata);
 SiphonError siphon_arc_list(const char* archive, SiphonLogFn log, void* userdata);
 SiphonError siphon_arc_copy(const char* archive, const char* inner, const char* out_path, SiphonLogFn log, void* userdata);
