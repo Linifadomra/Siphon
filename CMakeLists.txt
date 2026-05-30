@@ -51,20 +51,17 @@ add_library(gc_disc STATIC
     src/disc/gc_wia.c
     src/disc/gc_wbfs.c
     src/disc/gc_rvz.c
-    src/disc/aes.c
     src/disc/gc_wii.c
     src/disc/lzma.c
+    src/encrypt/aes.c
+    src/encrypt/platform.c
 )
 
-target_include_directories(gc_disc PUBLIC include PRIVATE src/disc)
+target_include_directories(gc_disc PUBLIC include PRIVATE src)
 target_link_libraries(gc_disc PRIVATE ZLIB::ZLIB PUBLIC gc_util Confluence::confluence)
 
-if(APPLE)
-    option(SIPHON_USE_COMMONCRYPTO "Use Apple CommonCrypto for Wii AES" ON)
-    if(SIPHON_USE_COMMONCRYPTO)
-        target_compile_definitions(gc_disc PRIVATE SIPHON_USE_COMMONCRYPTO=1)
-    endif()
-endif()
+include(cmake/encrypt.cmake)
+siphon_apply_crypto_backend(gc_disc)
 
 if(ZSTD_FOUND)
     target_include_directories(gc_disc PRIVATE ${ZSTD_INCLUDE_DIRS})

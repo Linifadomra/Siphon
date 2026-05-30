@@ -1,0 +1,25 @@
+function(siphon_apply_crypto_backend target)
+    if(APPLE)
+        target_compile_definitions(${target} PRIVATE SIPHON_USE_COMMONCRYPTO=1)
+        message(STATUS "CRYPTO: CommonCrypto (Apple)")
+
+    elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|AMD64|i[3-6]86)$")
+        target_compile_definitions(${target} PRIVATE SIPHON_USE_AESNI=1)
+        if(MSVC)
+        else()
+            target_compile_options(${target} PRIVATE -maes)
+        endif()
+        message(STATUS "CRYPTO: AES-NI (x86)")
+
+    elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64|ARM64)$")
+        target_compile_definitions(${target} PRIVATE SIPHON_USE_ARM_CRYPTO=1)
+        if(NOT MSVC)
+            target_compile_options(${target} PRIVATE -march=armv8-a+crypto)
+        endif()
+        message(STATUS "CRYPTO: ARMv8 Crypto (ARM64)")
+
+    else()
+        message(STATUS "CRYPTO: tiny-AES-c (portable fallback)")
+    endif()
+
+endfunction()

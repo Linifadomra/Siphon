@@ -1,4 +1,4 @@
-#include "aes.h"
+#include "encrypt/platform.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -11,9 +11,9 @@ int main(void) {
                        0xdc,0x11,0x85,0x97,0x19,0x6a,0x0b,0x32};
     uint8_t expect[16] = {0x32,0x43,0xf6,0xa8,0x88,0x5a,0x30,0x8d,
                           0x31,0x31,0x98,0xa2,0xe0,0x37,0x07,0x34};
-    struct AES_ctx ctx;
-    AES_init_ctx_iv(&ctx, key, iv);
-    AES_CBC_decrypt_buffer(&ctx, buf, 16);
+
+    aes128_cbc_decrypt(key, iv, buf, buf, 16);
+
     if (memcmp(buf, expect, 16) != 0) {
         fprintf(stderr, "AES CBC decrypt mismatch\n");
         return 1;
