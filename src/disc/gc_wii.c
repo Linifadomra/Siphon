@@ -1,12 +1,9 @@
 #include "gc_disc_internal.h"
 #include "siphon_log.h"
-#include "aes.h"
 #include <stdlib.h>
 #include <string.h>
 
-#if defined(SIPHON_USE_COMMONCRYPTO)
-#include <CommonCrypto/CommonCrypto.h>
-#endif
+#include "encrypt/platform.h"
 
 #define WII_CLUSTER       0x8000u
 #define WII_CLUSTER_HASH  0x0400u
@@ -20,9 +17,6 @@ typedef struct {
     uint8_t    clusterEnc[WII_CLUSTER];
     uint8_t    clusterPlain[WII_CLUSTER_DATA];
     uint64_t   cachedCluster;
-#if !defined(SIPHON_USE_COMMONCRYPTO)
-    struct AES_ctx aes;
-#endif
 } WiiCtx;
 
 static const uint8_t WII_COMMON_KEYS[2][16] = {
@@ -65,9 +59,7 @@ static int wii_probe_boot(gc_read_fn raw, GCDisc* disc, uint32_t dataStart,
     if (raw(disc, dataStart, cluster, WII_CLUSTER) < 0) return -1;
     memcpy(iv, cluster + 0x3D0, 16);
     memcpy(plain, cluster + WII_CLUSTER_HASH, WII_CLUSTER_DATA);
-    struct AES_ctx ctx;
-    AES_init_ctx_iv(&ctx, titleKey, iv);
-    AES_CBC_decrypt_buffer(&ctx, plain, WII_CLUSTER_DATA);
+    aes128_cbc_decrypt(titleKey, iv, plain, plain, WII_CLUSTER_DATA);
     memcpy(preview, plain, 6);
     preview[6] = '\0';
     return wii_boot_valid(plain) ? 0 : 1;
@@ -87,9 +79,7 @@ static int wii_find_title_key(GCDisc* disc, gc_read_fn raw, const uint8_t* ticke
             uint8_t iv[16] = {0};
             memcpy(iv, ticket + 0x1DC, 8);
             memcpy(out, ticket + 0x1BF, 16);
-            struct AES_ctx ctx;
-            AES_init_ctx_iv(&ctx, commonKey, iv);
-            AES_CBC_decrypt_buffer(&ctx, out, 16);
+            aes128_cbc_decrypt(commonKey, iv, out, out, 16);
             return 0;
         }
     }
@@ -109,9 +99,7 @@ static int wii_find_title_key(GCDisc* disc, gc_read_fn raw, const uint8_t* ticke
         char preview[7];
         wii_common_key_by_index(order[i], commonKey);
         memcpy(out, ticket + 0x1BF, 16);
-        struct AES_ctx ctx;
-        AES_init_ctx_iv(&ctx, commonKey, iv);
-        AES_CBC_decrypt_buffer(&ctx, out, 16);
+        aes128_cbc_decrypt(commonKey, iv, out, out, 16);
         if (wii_probe_boot(raw, disc, dataStart, out, preview) == 0)
             return 0;
     }
@@ -121,28 +109,10 @@ static int wii_find_title_key(GCDisc* disc, gc_read_fn raw, const uint8_t* ticke
 }
 
 static void wii_decrypt_cluster(const uint8_t titleKey[16],
-#if !defined(SIPHON_USE_COMMONCRYPTO)
-                                struct AES_ctx* aes,
-#endif
                                 const uint8_t* enc, uint8_t* plain) {
     uint8_t iv[16];
     memcpy(iv, enc + 0x3D0, 16);
-
-#if defined(SIPHON_USE_COMMONCRYPTO)
-    size_t outLen = 0;
-    CCStatus st = CCCrypt(kCCDecrypt, kCCAlgorithmAES128, 0,
-                          titleKey, kCCKeySizeAES128, iv,
-                          enc + WII_CLUSTER_HASH, WII_CLUSTER_DATA,
-                          plain, WII_CLUSTER_DATA, &outLen);
-    if (st != kCCSuccess || outLen != WII_CLUSTER_DATA) {
-        siphon_log("Wii: CCCrypt failed status=%d outLen=%zu", (int)st, outLen);
-        memset(plain, 0, WII_CLUSTER_DATA);
-    }
-#else
-    memcpy(plain, enc + WII_CLUSTER_HASH, WII_CLUSTER_DATA);
-    AES_ctx_set_iv(aes, iv);
-    AES_CBC_decrypt_buffer(aes, plain, WII_CLUSTER_DATA);
-#endif
+    aes128_cbc_decrypt(titleKey, iv, enc + WII_CLUSTER_HASH, plain, WII_CLUSTER_DATA);
 }
 
 static int wii_read(GCDisc* disc, uint64_t offset, void* buf, size_t size) {
@@ -161,11 +131,7 @@ static int wii_read(GCDisc* disc, uint64_t offset, void* buf, size_t size) {
                 return -1;
             }
 
-            wii_decrypt_cluster(w->titleKey,
-#if !defined(SIPHON_USE_COMMONCRYPTO)
-                                &w->aes,
-#endif
-                                w->clusterEnc, w->clusterPlain);
+            wii_decrypt_cluster(w->titleKey, w->clusterEnc, w->clusterPlain);
             w->cachedCluster = cluster;
         }
 
@@ -245,10 +211,6 @@ int gc_wii_wrap(GCDisc* disc) {
         free(w);
         return -1;
     }
-
-#if !defined(SIPHON_USE_COMMONCRYPTO)
-    AES_init_ctx_key(&w->aes, w->titleKey);
-#endif
 
     disc->wii         = w;
     disc->read        = wii_read;

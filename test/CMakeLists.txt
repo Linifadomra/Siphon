@@ -12,7 +12,7 @@ add_test(
 
 add_executable(test_aes test_aes.c)
 target_link_libraries(test_aes PRIVATE siphon)
-target_include_directories(test_aes PRIVATE ${CMAKE_SOURCE_DIR}/src/disc)
+target_include_directories(test_aes PRIVATE ${CMAKE_SOURCE_DIR}/src)
 add_test(NAME test_aes COMMAND test_aes)
 
 add_executable(test_lzma test_lzma.c)
