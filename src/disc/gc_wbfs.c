@@ -5,6 +5,12 @@
 #include "siphon_log.h"
 #include <stdlib.h>
 #include <string.h>
+#ifdef _MSC_VER
+    // Windows equivalents for POSIX types and functions
+    typedef long long off_t;
+    #define ftello _ftelli64
+    #define fseeko _fseeki64
+#endif
 
 #define GC_DISC_SIZE  0x57058000u
 #define WII_DISC_SIZE 0x118580000u

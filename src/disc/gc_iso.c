@@ -4,6 +4,12 @@
 #include "gc_disc_internal.h"
 #include <stdio.h>
 #include <string.h>
+#ifdef _MSC_VER
+    // Windows equivalents for POSIX types and functions
+    typedef long long off_t;
+    #define ftello _ftelli64
+    #define fseeko _fseeki64
+#endif
 
 static int iso_read(GCDisc* disc, uint64_t offset, void* buf, size_t size) {
     if (fseeko(disc->file, (off_t)offset, SEEK_SET) != 0) return -1;
