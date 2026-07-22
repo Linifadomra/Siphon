@@ -39,6 +39,8 @@ endif()
 
 add_library(gc_util STATIC
     src/util/siphon_log.c
+    src/util/siphon_fs.c
+    src/util/siphon_sjis.c
 )
 target_include_directories(gc_util PUBLIC src/util)
 

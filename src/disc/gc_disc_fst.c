@@ -1,6 +1,8 @@
 #include <confluence/macros.h>
 #include "gc_disc_internal.h"
+#include "siphon_fs.h"
 #include "siphon_log.h"
+#include "siphon_sjis.h"
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
@@ -12,20 +14,20 @@ static void mkdirs(const char* path) {
     for (char* p = tmp + 1; *p; p++) {
         if (*p == '/' || *p == '\\') {
             *p = '\0';
-            MKDIR_ONE(tmp);
+            siphon_mkdir(tmp);
             *p = '/';
         }
     }
-    MKDIR_ONE(tmp);
+    siphon_mkdir(tmp);
 #else
     for (char* p = tmp + 1; *p; p++) {
         if (*p == '/') {
             *p = '\0';
-            MKDIR_ONE(tmp);
+            siphon_mkdir(tmp);
             *p = '/';
         }
     }
-    MKDIR_ONE(tmp);
+    siphon_mkdir(tmp);
 #endif
 }
 
@@ -105,7 +107,7 @@ int gc_disc_parse_fst(GCDisc* disc) {
         const uint8_t* e = disc->fstData + i * 12;
         uint32_t nameOff = ((uint32_t)e[1] << 16) | ((uint32_t)e[2] << 8) | e[3];
         const char* name = disc->stringTable + nameOff;
-        size_t nameLen = strlen(name);
+        size_t nameLen = siphon_sjis_to_utf8(name, NULL, 0);
 
         while (dirDepth > 1 && i >= dirEnd[dirDepth - 1]) dirDepth--;
 
@@ -141,7 +143,7 @@ int gc_disc_parse_fst(GCDisc* disc) {
         const uint8_t* e = disc->fstData + i * 12;
         uint32_t nameOff = ((uint32_t)e[1] << 16) | ((uint32_t)e[2] << 8) | e[3];
         const char* name = disc->stringTable + nameOff;
-        size_t nameLen = strlen(name);
+        size_t nameLen = siphon_sjis_to_utf8(name, NULL, 0);
 
         while (dirDepth > 1 && i >= dirEnd[dirDepth - 1]) dirDepth--;
 
@@ -151,7 +153,7 @@ int gc_disc_parse_fst(GCDisc* disc) {
             pathWrite += dirLens[dirDepth - 1];
             *pathWrite++ = '/';
         }
-        memcpy(pathWrite, name, nameLen);
+        siphon_sjis_to_utf8(name, pathWrite, nameLen + 1);
         pathWrite += nameLen;
         *pathWrite++ = '\0';
 
@@ -184,7 +186,7 @@ void gc_disc_free_parsed(GCDisc* disc) {
 }
 
 static int write_buf(const char* path, const void* data, size_t size) {
-    FILE* f = fopen(path, "wb");
+    FILE* f = siphon_fopen(path, "wb");
     if (!f) return -1;
     int ok = (fwrite(data, 1, size, f) == size) ? 0 : -1;
     fclose(f);
@@ -224,12 +226,12 @@ int gc_disc_extract_file(GCDisc* disc, int index, const char* outputPath) {
     int ret = 0;
 
     if (e->size <= BUF_SIZE) {
-        if (disc->read(disc, e->discOffset, buf, e->size) < 0 ||
+        if ((e->size > 0 && disc->read(disc, e->discOffset, buf, e->size) < 0) ||
             write_buf(outputPath, buf, e->size) < 0) {
             ret = -1;
         }
     } else {
-        FILE* out = fopen(outputPath, "wb");
+        FILE* out = siphon_fopen(outputPath, "wb");
         if (!out) { free(buf); return -1; }
         size_t remaining = e->size;
         uint32_t off = e->discOffset;
@@ -290,7 +292,7 @@ int gc_disc_extract_all(GCDisc* disc, const char* outputDir) {
 
     snprintf(path, sizeof(path), "%s/main.dol", sysDir);
     {
-        FILE* out = fopen(path, "wb");
+        FILE* out = siphon_fopen(path, "wb");
         if (!out) { free(buf); return -1; }
         size_t remaining = dolSize;
         uint32_t off = disc->dolOffset;
@@ -333,7 +335,6 @@ int gc_disc_extract_all(GCDisc* disc, const char* outputDir) {
     int ret = 0;
     for (int i = 0; i < fileCount; i++) {
         const GCEntry* e = &sorted[i];
-        if (e->size == 0) continue;
 
         snprintf(path, sizeof(path), "%s/%s", filesDir, e->name);
 
@@ -350,7 +351,7 @@ int gc_disc_extract_all(GCDisc* disc, const char* outputDir) {
         }
 
         if (e->size <= BUF_SIZE) {
-            if (disc->read(disc, e->discOffset, buf, e->size) < 0 ||
+            if ((e->size > 0 && disc->read(disc, e->discOffset, buf, e->size) < 0) ||
                 write_buf(path, buf, e->size) < 0) {
                 siphon_log("extract failed at %s (off=0x%X sz=%u)",
                         e->name, e->discOffset, e->size);
@@ -358,7 +359,7 @@ int gc_disc_extract_all(GCDisc* disc, const char* outputDir) {
                 break;
             }
         } else {
-            FILE* out = fopen(path, "wb");
+            FILE* out = siphon_fopen(path, "wb");
             if (!out) {
                 siphon_log("fopen failed: %s", path);
                 ret = -1;
