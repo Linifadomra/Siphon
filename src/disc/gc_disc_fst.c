@@ -322,12 +322,7 @@ int gc_disc_extract_all(GCDisc* disc, const char* outputDir) {
         if (disc->entries[i].type == GC_ENTRY_FILE) fileCount++;
     }
 
-    if (fileCount == 0) {
-        free(buf);
-        return -1;
-    }
-
-    GCEntry* sorted = (GCEntry*)malloc(fileCount * sizeof(GCEntry));
+    GCEntry* sorted = (GCEntry*)malloc((fileCount > 0 ? fileCount : 1) * sizeof(GCEntry));
     if (!sorted) { free(buf); return -1; }
 
     int si = 0;
