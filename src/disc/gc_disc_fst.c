@@ -151,8 +151,14 @@ int gc_disc_parse_fst(GCDisc* disc) {
             pathWrite += dirLens[dirDepth - 1];
             *pathWrite++ = '/';
         }
-        memcpy(pathWrite, name, nameLen);
-        pathWrite += nameLen;
+        for (size_t k = 0; k < nameLen; k++) {
+            unsigned char c = (unsigned char)name[k];
+            if (c == '?' || c == ':' || c == '*' || c == '<' || c == '>' || c == '|' || c == '"' || c == '\\' || c < 32 || c >= 127) {
+                *pathWrite++ = '_';
+            } else {
+                *pathWrite++ = (char)c;
+            }
+        }
         *pathWrite++ = '\0';
 
         disc->entries[i].name = pathStart;
@@ -183,9 +189,14 @@ void gc_disc_free_parsed(GCDisc* disc) {
     free(disc->pathBuf);    disc->pathBuf = NULL;
 }
 
+#include <errno.h>
+
 static int write_buf(const char* path, const void* data, size_t size) {
     FILE* f = fopen(path, "wb");
-    if (!f) return -1;
+    if (!f) {
+        siphon_log("write_buf fopen failed for '%s': %s", path, strerror(errno));
+        return -1;
+    }
     int ok = (fwrite(data, 1, size, f) == size) ? 0 : -1;
     fclose(f);
     return ok;
