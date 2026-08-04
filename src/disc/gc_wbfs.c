@@ -93,7 +93,6 @@ int gc_wbfs_open(GCDisc* disc) {
     uint64_t tableBytes = (uint64_t)fileSize - wlbaOff;
     uint32_t wlbaFromFile = (uint32_t)(tableBytes / 2);
     uint32_t wlbaMaxWii = (WII_DISC_SIZE + wbfsSectorSize - 1) / wbfsSectorSize;
-    uint32_t wlbaMaxGc  = (GC_DISC_SIZE + wbfsSectorSize - 1) / wbfsSectorSize;
     uint32_t wlbaCount  = wlbaFromFile;
     if (wlbaCount > wlbaMaxWii) wlbaCount = wlbaMaxWii;
 
