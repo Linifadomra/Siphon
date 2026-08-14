@@ -76,6 +76,10 @@ add_library(gc_dol STATIC
 target_include_directories(gc_dol PUBLIC include src/dol)
 target_link_libraries(gc_dol PUBLIC Confluence::confluence gc_disc)
 
+set_target_properties(gc_util gc_disc PROPERTIES
+    POSITION_INDEPENDENT_CODE ON
+)
+
 if(BUILD_SIPHON_BINARY)
     add_executable(siphon cmd/cli.c src/siphon.c)
     target_link_libraries(siphon PRIVATE gc_dol)
