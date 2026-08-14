@@ -2,6 +2,7 @@
 #define GC_DISC_H
 #include <stdint.h>
 #include <stddef.h>
+#include <stdio.h>
 #include <confluence/types.h>
 #ifdef __cplusplus
 extern "C" {
@@ -18,6 +19,7 @@ typedef enum {
     GC_FORMAT_WBFS,
 } GCDiscFormat;
 
+FILE*        gc_disc_fopen(const char* path);
 GCDiscFormat gc_disc_detect_format(const char* path);
 GCDisc*      gc_disc_open(const char* path);
 void         gc_disc_close(GCDisc* disc);

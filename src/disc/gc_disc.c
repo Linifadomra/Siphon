@@ -3,6 +3,30 @@
 #include <stdlib.h>
 #include <string.h>
 
+#if defined(__ANDROID__) || defined(__linux__) || defined(__APPLE__)
+#include <unistd.h>
+#endif
+
+FILE* gc_disc_fopen(const char* path) {
+    if (!path) return NULL;
+#if defined(__ANDROID__) || defined(__linux__) || defined(__APPLE__)
+    if (strncmp(path, "fd:", 3) == 0) {
+        int fd = atoi(path + 3);
+        if (fd < 0) return NULL;
+        int dupfd = dup(fd);
+        if (dupfd < 0) return NULL;
+        FILE* f = fdopen(dupfd, "rb");
+        if (!f) {
+            close(dupfd);
+            return NULL;
+        }
+        rewind(f);
+        return f;
+    }
+#endif
+    return fopen(path, "rb");
+}
+
 static const uint8_t MAGIC_CISO[4] = {'C','I','S','O'};
 static const uint8_t MAGIC_WIA[4]  = {'W','I','A',0x01};
 static const uint8_t MAGIC_RVZ[4]  = {'R','V','Z',0x01};
@@ -22,7 +46,7 @@ static const char* format_name(GCDiscFormat fmt) {
 }
 
 GCDiscFormat gc_disc_detect_format(const char* path) {
-    FILE* f = fopen(path, "rb");
+    FILE* f = gc_disc_fopen(path);
     if (!f) return GC_FORMAT_UNKNOWN;
 
     uint8_t hdr[4];
@@ -49,7 +73,7 @@ GCDisc* gc_disc_open(const char* path) {
     GCDisc* disc = (GCDisc*)calloc(1, sizeof(GCDisc));
     if (!disc) return NULL;
 
-    disc->file = fopen(path, "rb");
+    disc->file = gc_disc_fopen(path);
     if (!disc->file) {
         free(disc);
         return NULL;
