@@ -1,3 +1,4 @@
+#define _POSIX_C_SOURCE 200809L
 #include "gc_disc_internal.h"
 #include "siphon_log.h"
 #include <stdlib.h>
