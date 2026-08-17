@@ -18,9 +18,13 @@ option(BUILD_SHARED_LIBS    "Build siphon as a shared library" OFF)
 option(SIPHON_BUILD_TESTS "Build siphon tests"                 OFF)
 
 # == Dependencies ==
-set(CONFLUENCE_DOL_YAML OFF CACHE BOOL "" FORCE)
+if(TARGET confluence AND NOT TARGET Confluence::confluence)
+    add_library(Confluence::confluence ALIAS confluence)
+endif()
 
-find_package(Confluence REQUIRED)
+if(NOT TARGET Confluence::confluence)
+    find_package(Confluence REQUIRED)
+endif()
 find_package(ZLIB REQUIRED)
 find_package(PkgConfig)
 if(PkgConfig_FOUND)
@@ -93,5 +97,6 @@ else()
 endif()
 
 if(SIPHON_BUILD_TESTS)
+    enable_testing()
     add_subdirectory(test)
 endif()
