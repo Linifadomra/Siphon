@@ -15,12 +15,23 @@ endif()
 # == Options ==
 option(BUILD_SIPHON_BINARY  "Build the siphon CLI executable"  OFF)
 option(BUILD_SHARED_LIBS    "Build siphon as a shared library" OFF)
-option(SIPHON_BUILD_TESTS "Build siphon tests"                 OFF)
+option(SIPHON_BUILD_TESTS   "Build siphon tests"               OFF)
+option(FETCH_CONFLUENCE     "Automatically fetch Confluence"   OFF)
 
 # == Dependencies ==
 set(CONFLUENCE_DOL_YAML OFF CACHE BOOL "" FORCE)
 
-find_package(Confluence REQUIRED)
+find_package(Confluence QUIET)
+if(NOT TARGET confluence)
+    include(FetchContent)
+    FetchContent_Declare(
+        confluence
+        GIT_REPOSITORY https://github.com/Linifadomra/Confluence
+        GIT_TAG        b2b77930801dfe3fad4b05f2744f0573f592b615
+    )
+    FetchContent_MakeAvailable(confluence)
+endif()
+
 find_package(ZLIB REQUIRED)
 find_package(PkgConfig)
 if(PkgConfig_FOUND)
