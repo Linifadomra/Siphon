@@ -79,14 +79,14 @@ int gc_wbfs_open(GCDisc* disc) {
     uint32_t hdSectorSize   = 1u << hdShift;
     uint32_t wbfsSectorSize = 1u << wbfsShift;
 
-    if (fseek(disc->file, 0, SEEK_END) != 0) return -1;
-    long fileSize = ftell(disc->file);
+    if (fseeko(disc->file, 0, SEEK_END) != 0) return -1;
+    off_t fileSize = ftello(disc->file);
     if (fileSize < 0) return -1;
 
     uint64_t wlbaOff = (uint64_t)hdSectorSize + 0x100;
     if ((uint64_t)fileSize <= wlbaOff) {
-        siphon_log("WBFS: file too small for WLBA table (size=%ld wlbaOff=0x%llX)",
-                   fileSize, (unsigned long long)wlbaOff);
+        siphon_log("WBFS: file too small for WLBA table (size=%lld wlbaOff=0x%llX)",
+                   (long long)fileSize, (unsigned long long)wlbaOff);
         return -1;
     }
 
@@ -104,7 +104,7 @@ int gc_wbfs_open(GCDisc* disc) {
     wb->wlbaTable = (uint16_t*)calloc(wb->wlbaCount, sizeof(uint16_t));
     if (!wb->wlbaTable) { free(wb); return -1; }
 
-    if (fseek(disc->file, (long)wlbaOff, SEEK_SET) != 0) {
+    if (fseeko(disc->file, (off_t)wlbaOff, SEEK_SET) != 0) {
         free(wb->wlbaTable); free(wb); return -1;
     }
 
