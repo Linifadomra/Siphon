@@ -20,7 +20,20 @@ option(SIPHON_BUILD_TESTS "Build siphon tests"                 OFF)
 # == Dependencies ==
 set(CONFLUENCE_DOL_YAML OFF CACHE BOOL "" FORCE)
 
-find_package(Confluence REQUIRED)
+find_package(Confluence QUIET)
+if(NOT Confluence_FOUND)
+    include(FetchContent)
+    FetchContent_Declare(
+        Confluence
+        GIT_REPOSITORY https://github.com/Linifadomra/Confluence
+        GIT_TAG        a7f6fc07ceb76b88f9297dcbcc79c8b9c475418b
+    )
+    FetchContent_MakeAvailable(Confluence)
+endif()
+
+if(NOT TARGET Confluence::confluence)
+    add_library(Confluence::confluence ALIAS confluence)
+endif()
 find_package(ZLIB REQUIRED)
 find_package(PkgConfig)
 if(PkgConfig_FOUND)
