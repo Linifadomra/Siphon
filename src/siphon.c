@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "gc_disc.h"
+#include "disc/gc_disc_internal.h"
 #include <confluence/dol.h>
 #include <confluence/yaz0.h>
 #include <confluence/rarc.h>
@@ -95,7 +95,7 @@ SiphonError siphon_disc_extract(
 
     const char* id = gc_disc_game_id(disc);
     siphon_log("Game ID: %s", id);
-    if (expect_ids && num_ids > 0) {
+    if (expect_ids != NULL && num_ids > 0) {
         int matched = 0;
         for (size_t i = 0; i < num_ids; i++) {
             if (expect_ids[i] && strncmp(id, expect_ids[i], 6) == 0) {
