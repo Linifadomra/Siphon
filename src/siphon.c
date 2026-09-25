@@ -225,3 +225,47 @@ SiphonError siphon_yaz0_decompress_file(const char* in, const char* out, SiphonL
     }
     return SIPHON_OK;
 }
+
+SiphonError siphon_disc_read_file(
+    const char* image,
+    const char* file_path,
+    void** out_data,
+    size_t* out_size,
+    SiphonLogFn log,
+    void* userdata
+) {
+    install_logger(log, userdata);
+    if (!out_data || !out_size) return SIPHON_ERR_IO;
+
+    GCDiscFormat fmt = gc_disc_detect_format(image);
+    if (fmt == GC_FORMAT_UNKNOWN) {
+        siphon_log("Error: unrecognized disc image format");
+        return SIPHON_ERR_FORMAT;
+    }
+
+    GCDisc* disc = gc_disc_open(image);
+    if (!disc) {
+        siphon_log("Error: failed to open disc image");
+        return SIPHON_ERR_IO;
+    }
+
+    int index = gc_disc_find_file(disc, file_path);
+    if (index < 0) {
+        siphon_log("Error: file '%s' not found in disc", file_path);
+        gc_disc_close(disc);
+        return SIPHON_ERR_NOT_FOUND;
+    }
+
+    void* buf = NULL;
+    size_t size = 0;
+    if (gc_disc_read_file(disc, index, &buf, &size) != 0) {
+        siphon_log("Error: failed to read file '%s'", file_path);
+        gc_disc_close(disc);
+        return SIPHON_ERR_IO;
+    }
+
+    gc_disc_close(disc);
+    *out_data = buf;
+    *out_size = size;
+    return SIPHON_OK;
+}

@@ -34,3 +34,4 @@ macro(add_disc_test name)
 endmacro()
 
 add_disc_test(ciso_gc)
+add_disc_test(disc_read_file)

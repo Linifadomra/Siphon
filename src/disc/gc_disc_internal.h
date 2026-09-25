@@ -86,5 +86,7 @@ const GCEntry* gc_disc_entry(const GCDisc* disc, int index);
 int          gc_disc_read(GCDisc* disc, uint32_t offset, void* buf, size_t size);
 int          gc_disc_extract_all(GCDisc* disc, const char* outputDir);
 int          gc_disc_extract_file(GCDisc* disc, int index, const char* outputPath);
+int          gc_disc_find_file(GCDisc* disc, const char* path);
+int          gc_disc_read_file(GCDisc* disc, int index, void** out_buf, size_t* out_size);
 
 #endif
