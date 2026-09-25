@@ -13,7 +13,7 @@ else()
 endif()
 
 # == Options ==
-option(BUILD_SIPHON_BINARY     "Build the siphon CLI executable"  OFF)
+option(BUILD_SIPHON_CLI        "Build the siphon CLI executable"  OFF)
 option(BUILD_SHARED_LIBS       "Build siphon as a shared library" OFF)
 option(SIPHON_BUILD_TESTS      "Build siphon tests"               OFF)
 option(SIPHON_FETCH_CONFLUENCE "Automatically fetch Confluence"   OFF)
@@ -96,16 +96,16 @@ set_target_properties(gc_util gc_disc PROPERTIES
     POSITION_INDEPENDENT_CODE ON
 )
 
-if(BUILD_SIPHON_BINARY)
-    add_executable(siphon cmd/cli.c src/siphon.c)
-    target_link_libraries(siphon PRIVATE gc_dol)
-else()
-    add_library(siphon src/siphon.c)
-    target_include_directories(siphon PUBLIC include)
-    target_link_libraries(siphon PUBLIC gc_dol)
-    set_target_properties(siphon PROPERTIES
+add_library(siphon src/siphon.c)
+target_include_directories(siphon PUBLIC include)
+target_link_libraries(siphon PUBLIC gc_dol)
+set_target_properties(siphon PROPERTIES
     VERSION   ${PROJECT_VERSION}
     SOVERSION ${PROJECT_VERSION_MAJOR})
+
+if(BUILD_SIPHON_CLI)
+    add_executable(siphon-cli cmd/cli.c)
+    target_link_libraries(siphon-cli PRIVATE siphon)
 endif()
 
 if(SIPHON_BUILD_TESTS)

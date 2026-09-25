@@ -77,14 +77,14 @@ jobs:
         run: |
           cmake -B build -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
-            -DBUILD_SIPHON_BINARY=ON
+            -DBUILD_SIPHON_CLI=ON
 
       - name: Configure (Windows)
         if: runner.os == 'Windows'
         run: |
           cmake -B build -G Ninja `
             -DCMAKE_BUILD_TYPE=Release `
-            -DBUILD_SIPHON_BINARY=ON `
+            -DBUILD_SIPHON_CLI=ON `
             -DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake `
             -DCMAKE_PREFIX_PATH=C:/Confluence
 
@@ -95,8 +95,8 @@ jobs:
         if: runner.os != 'Windows'
         run: |
           mkdir -p release/bin release/lib release/include
-          cp build/siphon release/bin/
-          cp build/libsiphon.a release/lib/
+          cp build/siphon-cli release/bin/siphon
+          cp build/libsiphon.* release/lib/ || true
           cp -r include/* release/include/
           tar -czf siphon-${{ matrix.platform }}-${{ matrix.arch }}.tar.gz -C release .
 
@@ -105,8 +105,9 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path release/bin, release/lib, release/include
-          Copy-Item build/siphon.exe release/bin/
-          Copy-Item build/siphon.lib release/lib/
+          Copy-Item build/siphon-cli.exe release/bin/siphon.exe
+          Copy-Item build/siphon.lib release/lib/ -ErrorAction SilentlyContinue
+          Copy-Item build/siphon.dll release/bin/ -ErrorAction SilentlyContinue
           Copy-Item -Recurse include/* release/include/
           Compress-Archive -Path release/* -DestinationPath siphon-${{ matrix.platform }}-${{ matrix.arch }}.zip
 
