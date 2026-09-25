@@ -75,6 +75,30 @@ SiphonError siphon_disc_extract(
 );
 
 /**
+ * @brief Reads a single file from a disc image into memory
+ *
+ * Extracts exactly one file by its path relative to the disc root.
+ * The caller owns the returned buffer and must free() it.
+ *
+ * @param image The absolute path of the disc image to read from
+ * @param file_path The path of the file inside the disc (e.g. "zelda.rel" or "rel/d_a_player.rel")
+ * @param out_data Pointer to receive the allocated buffer containing the file data
+ * @param out_size Pointer to receive the size of the file in bytes
+ * @param log A log function pointer. If NULL, logs write directly to stream.
+ * @param userdata Data passed in to the log function
+ * @returns A SiphonError with the result of the read. 0 means it completed successfully.
+ *          Returns SIPHON_ERR_NOT_FOUND if the file does not exist in the disc.
+ */
+SiphonError siphon_disc_read_file(
+    const char* image,
+    const char* file_path,
+    void** out_data,
+    size_t* out_size,
+    SiphonLogFn log,
+    void* userdata
+);
+
+/**
  * @brief Extracts all files from a GC/RARC archive to the output directory
  *
  * @param archive The absolute path of the archive file to extract

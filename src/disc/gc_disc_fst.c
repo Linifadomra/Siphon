@@ -402,3 +402,39 @@ done:
     free(buf);
     return ret;
 }
+
+int gc_disc_find_file(GCDisc* disc, const char* path) {
+    if (!disc || !path) return -1;
+    for (uint32_t i = 1; i < disc->entryCount; i++) {
+        if (disc->entries[i].type == GC_ENTRY_FILE) {
+            if (strcmp(disc->entries[i].name, path) == 0) {
+                return (int)i;
+            }
+        }
+    }
+    return -1;
+}
+
+int gc_disc_read_file(GCDisc* disc, int index, void** out_buf, size_t* out_size) {
+    if (!disc || index < 0 || (uint32_t)index >= disc->entryCount) return -1;
+    const GCEntry* e = &disc->entries[index];
+    if (e->type != GC_ENTRY_FILE) return -1;
+
+    if (e->size == 0) {
+        *out_buf = NULL;
+        *out_size = 0;
+        return 0;
+    }
+
+    uint8_t* buf = (uint8_t*)malloc(e->size);
+    if (!buf) return -1;
+
+    if (disc->read(disc, e->discOffset, buf, e->size) < 0) {
+        free(buf);
+        return -1;
+    }
+
+    *out_buf = buf;
+    *out_size = e->size;
+    return 0;
+}

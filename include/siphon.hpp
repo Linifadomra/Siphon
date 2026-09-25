@@ -59,6 +59,27 @@ inline Error discExtract(const std::string& image, const std::string& outdir,
 }
 
 /**
+ * @brief Reads a single file from a disc image into memory
+ *
+ * Extracts exactly one file by its path relative to the disc root.
+ * The caller owns the returned buffer and must free() it.
+ *
+ * @param image The absolute path of the disc image to read from
+ * @param filePath The path of the file inside the disc (e.g. "zelda.rel" or "rel/d_a_player.rel")
+ * @param outData Pointer to receive the allocated buffer containing the file data
+ * @param outSize Pointer to receive the size of the file in bytes
+ * @param log A log function pointer. If NULL, logs write directly to stream.
+ * @param userdata Data passed in to the log function
+ * @returns A SiphonError with the result of the read. 0 means it completed successfully.
+ *          Returns SIPHON_ERR_NOT_FOUND if the file does not exist in the disc.
+ */
+inline Error discReadFile(const std::string& image, const std::string& filePath,
+                          void** outData, size_t* outSize,
+                          LogFn log = nullptr, void* userdata = nullptr) {
+    return siphon_disc_read_file(image.c_str(), filePath.c_str(), outData, outSize, log, userdata);
+}
+
+/**
  * @brief Extracts all files from a GC/RARC archive to the output directory
  *
  * @param archive The path of the archive file to extract
