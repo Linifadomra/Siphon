@@ -1,0 +1,65 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          lfs: true
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build libzstd-dev zlib1g-dev libyaml-dev
+
+      - name: Build Confluence
+        run: |
+          git clone https://github.com/Linifadomra/Confluence.git
+          cmake -B Confluence/build -S Confluence \
+            -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX=/usr/local
+          cmake --build Confluence/build
+          sudo cmake --install Confluence/build
+
+      - name: Configure
+        run: |
+          cmake -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DBUILD_SIPHON_BINARY=ON
+
+      - name: Build
+        run: cmake --build build
+
+      - name: Package artifacts
+        run: |
+          mkdir -p release/bin release/lib release/include
+          cp build/siphon release/bin/
+          cp build/libsiphon.a release/lib/
+          cp -r include/* release/include/
+          tar -czf siphon-linux-x86_64.tar.gz -C release .
+
+      - name: Extract version from tag
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: siphon-linux-x86_64.tar.gz
+          draft: false
+          prerelease: ${{ contains(github.ref, 'alpha') || contains(github.ref, 'beta') || contains(github.ref, 'rc') }}
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
