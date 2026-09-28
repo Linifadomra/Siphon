@@ -80,7 +80,11 @@ int gc_wbfs_open(GCDisc* disc) {
     uint32_t wbfsSectorSize = 1u << wbfsShift;
 
     if (fseek(disc->file, 0, SEEK_END) != 0) return -1;
-    long fileSize = ftell(disc->file);
+#ifdef _WIN32
+    __int64 fileSize = _ftelli64(disc->file);
+#else
+    off_t fileSize = ftello(disc->file);
+#endif
     if (fileSize < 0) return -1;
 
     uint64_t wlbaOff = (uint64_t)hdSectorSize + 0x100;

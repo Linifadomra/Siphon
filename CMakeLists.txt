@@ -73,6 +73,12 @@ add_library(gc_disc STATIC
     src/encrypt/platform.c
 )
 
+if(CMAKE_SIZEOF_VOID_P MATCHES "4")
+    target_compile_definitions(gc_disc PRIVATE
+            _FILE_OFFSET_BITS=64
+    )
+endif()
+
 target_include_directories(gc_disc PUBLIC include PRIVATE src)
 target_link_libraries(gc_disc PRIVATE ZLIB::ZLIB PUBLIC gc_util Confluence::confluence)
 
