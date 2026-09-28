@@ -1,7 +1,16 @@
+#define _POSIX_C_SOURCE 200809L
+
 #include "gc_disc_internal.h"
 #include "siphon_log.h"
 #include <stdlib.h>
 #include <string.h>
+
+#ifdef _MSC_VER
+    // Windows equivalents for POSIX types and functions
+    typedef long long off_t;
+    #define ftello _ftelli64
+    #define fseeko _fseeki64
+#endif
 
 #define CISO_HEADER_SIZE 0x8000
 #define CISO_MAP_OFFSET  8
@@ -31,7 +40,7 @@ static int ciso_read(GCDisc* disc, uint64_t offset, void* buf, size_t size) {
             uint64_t fileOff = (uint64_t)CISO_HEADER_SIZE +
                                (uint64_t)cd->presentBefore[blockIdx] * cd->blockSize +
                                blockOff;
-            if (fseek(disc->file, (long)fileOff, SEEK_SET) != 0) return -1;
+            if (fseeko(disc->file, (long)fileOff, SEEK_SET) != 0) return -1;
             if (fread(out, 1, chunk, disc->file) != chunk) return -1;
         }
 
@@ -54,7 +63,7 @@ static void ciso_close(GCDisc* disc) {
 
 int gc_ciso_open(GCDisc* disc) {
     uint8_t hdr[CISO_HEADER_SIZE];
-    if (fseek(disc->file, 0, SEEK_SET) != 0) return -1;
+    if (fseeko(disc->file, 0, SEEK_SET) != 0) return -1;
     if (fread(hdr, 1, CISO_HEADER_SIZE, disc->file) != CISO_HEADER_SIZE) {
         siphon_log("CISO header truncated");
         return -1;

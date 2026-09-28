@@ -1,8 +1,17 @@
+#define _POSIX_C_SOURCE 200809L
+
 #include "gc_disc_internal.h"
 #include "siphon_log.h"
 #include <stdlib.h>
 #include <string.h>
 #include <zlib.h>
+
+#ifdef _MSC_VER
+    // Windows equivalents for POSIX types and functions
+    typedef long long off_t;
+    #define ftello _ftelli64
+    #define fseeko _fseeki64
+#endif
 
 typedef struct {
     uint32_t  blockSize;
@@ -28,12 +37,12 @@ static int gcz_decompress_block(GCDisc* disc, GCZData* gz, uint32_t blockIdx) {
     if (blockIdx + 1 < gz->numBlocks) {
         nextOff = gz->blockPtrs[blockIdx + 1] & 0x7FFFFFFFFFFFFFFFULL;
     } else {
-        fseek(disc->file, 0, SEEK_END);
-        nextOff = (uint64_t)ftell(disc->file);
+        fseeko(disc->file, 0, SEEK_END);
+        nextOff = ftello(disc->file);
     }
     size_t compSize = (size_t)(nextOff - fileOff);
 
-    if (fseek(disc->file, (long)fileOff, SEEK_SET) != 0) return -1;
+    if (fseeko(disc->file, (long)fileOff, SEEK_SET) != 0) return -1;
 
     if (uncompressed) {
         size_t toRead = gz->blockSize;
@@ -98,7 +107,7 @@ static void gcz_close(GCDisc* disc) {
 
 int gc_gcz_open(GCDisc* disc) {
     uint8_t hdr[0x20];
-    if (fseek(disc->file, 0, SEEK_SET) != 0) return -1;
+    if (fseeko(disc->file, 0, SEEK_SET) != 0) return -1;
     if (fread(hdr, 1, 0x20, disc->file) != 0x20) {
         siphon_log("GCZ header truncated");
         return -1;
