@@ -104,7 +104,7 @@ int gc_wbfs_open(GCDisc* disc) {
     wb->wlbaTable = (uint16_t*)calloc(wb->wlbaCount, sizeof(uint16_t));
     if (!wb->wlbaTable) { free(wb); return -1; }
 
-    if (fseek(disc->file, (long)wlbaOff, SEEK_SET) != 0) {
+    if (fseeko(disc->file, (off_t)wlbaOff, SEEK_SET) != 0) {
         free(wb->wlbaTable); free(wb); return -1;
     }
 

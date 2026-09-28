@@ -1,3 +1,4 @@
+#define _FILE_OFFSET_BITS 64
 #define _POSIX_C_SOURCE 200809L
 
 #include "gc_disc_internal.h"
@@ -42,7 +43,7 @@ static int gcz_decompress_block(GCDisc* disc, GCZData* gz, uint32_t blockIdx) {
     }
     size_t compSize = (size_t)(nextOff - fileOff);
 
-    if (fseeko(disc->file, (long)fileOff, SEEK_SET) != 0) return -1;
+    if (fseeko(disc->file, (off_t)fileOff, SEEK_SET) != 0) return -1;
 
     if (uncompressed) {
         size_t toRead = gz->blockSize;

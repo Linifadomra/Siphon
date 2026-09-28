@@ -27,9 +27,9 @@ struct GCDisc {
     void*        formatData;
 
     char     gameId[7];
-    uint32_t dolOffset;
-    uint32_t fstOffset;
-    uint32_t fstSize;
+    uint64_t dolOffset;
+    uint64_t fstOffset;
+    uint64_t fstSize;
 
     uint8_t  boot[0x440];
     uint8_t  bi2[0x2000];
@@ -83,7 +83,7 @@ GCDiscFormat gc_disc_format(const GCDisc* disc);
 const char*  gc_disc_game_id(const GCDisc* disc);
 int          gc_disc_entry_count(const GCDisc* disc);
 const GCEntry* gc_disc_entry(const GCDisc* disc, int index);
-int          gc_disc_read(GCDisc* disc, uint32_t offset, void* buf, size_t size);
+int          gc_disc_read(GCDisc* disc, uint64_t offset, void* buf, size_t size);
 int          gc_disc_extract_all(GCDisc* disc, const char* outputDir);
 int          gc_disc_extract_file(GCDisc* disc, int index, const char* outputPath);
 int          gc_disc_find_file(GCDisc* disc, const char* path);

@@ -3,6 +3,7 @@
 #include "siphon_log.h"
 #include <stdlib.h>
 #include <string.h>
+#include <inttypes.h>
 #include <sys/stat.h>
 
 static void mkdirs(const char* path) {
@@ -42,9 +43,9 @@ int gc_disc_parse_fst(GCDisc* disc) {
     memcpy(disc->gameId, disc->boot, 6);
     disc->gameId[6] = '\0';
 
-    disc->dolOffset = gc_be32(disc->boot + 0x420) << disc->offsetShift;
-    disc->fstOffset = gc_be32(disc->boot + 0x424) << disc->offsetShift;
-    disc->fstSize   = gc_be32(disc->boot + 0x428) << disc->offsetShift;
+    disc->dolOffset = (uint64_t)gc_be32(disc->boot + 0x420) << disc->offsetShift;
+    disc->fstOffset = (uint64_t)gc_be32(disc->boot + 0x424) << disc->offsetShift;
+    disc->fstSize   = (uint64_t)gc_be32(disc->boot + 0x428) << disc->offsetShift;
 
     if (disc->read(disc, 0x440, disc->bi2, 0x2000) < 0) {
         siphon_log("FST: bi2 read failed");
@@ -71,11 +72,11 @@ int gc_disc_parse_fst(GCDisc* disc) {
 
     disc->fstData = (uint8_t*)malloc(disc->fstSize);
     if (!disc->fstData) {
-        siphon_log("FST: fst alloc failed (size=0x%X)", disc->fstSize);
+        siphon_log("FST: fst alloc failed (size=0x%" PRIx64 ")", disc->fstSize);
         return -1;
     }
     if (disc->read(disc, disc->fstOffset, disc->fstData, disc->fstSize) < 0) {
-        siphon_log("FST: fst read failed at 0x%X size=0x%X", disc->fstOffset, disc->fstSize);
+        siphon_log("FST: fst read failed at 0x%" PRIx64 " size=0x%" PRIx64, disc->fstOffset, disc->fstSize);
         return -1;
     }
 
@@ -162,7 +163,7 @@ int gc_disc_parse_fst(GCDisc* disc) {
         *pathWrite++ = '\0';
 
         disc->entries[i].name = pathStart;
-        disc->entries[i].discOffset = gc_be32(e + 4) << disc->offsetShift;
+        disc->entries[i].discOffset = gc_be32(e + 4);
         disc->entries[i].size = gc_be32(e + 8);
 
         if (e[0]) {
@@ -235,7 +236,7 @@ int gc_disc_extract_file(GCDisc* disc, int index, const char* outputPath) {
     int ret = 0;
 
     if (e->size <= BUF_SIZE) {
-        if (disc->read(disc, e->discOffset, buf, e->size) < 0 ||
+        if (disc->read(disc, (uint64_t)e->discOffset << disc->offsetShift, buf, e->size) < 0 ||
             write_buf(outputPath, buf, e->size) < 0) {
             ret = -1;
         }
@@ -243,7 +244,7 @@ int gc_disc_extract_file(GCDisc* disc, int index, const char* outputPath) {
         FILE* out = fopen(outputPath, "wb");
         if (!out) { free(buf); return -1; }
         size_t remaining = e->size;
-        uint32_t off = e->discOffset;
+        uint64_t off = (uint64_t)e->discOffset << disc->offsetShift;
         while (remaining > 0) {
             size_t chunk = remaining < BUF_SIZE ? remaining : BUF_SIZE;
             if (disc->read(disc, off, buf, chunk) < 0 ||
@@ -251,7 +252,7 @@ int gc_disc_extract_file(GCDisc* disc, int index, const char* outputPath) {
                 ret = -1;
                 break;
             }
-            off += (uint32_t)chunk;
+            off += chunk;
             remaining -= chunk;
         }
         fclose(out);
@@ -262,8 +263,8 @@ int gc_disc_extract_file(GCDisc* disc, int index, const char* outputPath) {
 }
 
 static int cmp_by_offset(const void* a, const void* b) {
-    uint32_t oa = ((const GCEntry*)a)->discOffset;
-    uint32_t ob = ((const GCEntry*)b)->discOffset;
+    uint64_t oa = ((const GCEntry*)a)->discOffset;
+    uint64_t ob = ((const GCEntry*)b)->discOffset;
     if (oa < ob) return -1;
     if (oa > ob) return 1;
     return 0;
@@ -304,14 +305,14 @@ int gc_disc_extract_all(GCDisc* disc, const char* outputDir) {
         FILE* out = fopen(path, "wb");
         if (!out) { free(buf); return -1; }
         size_t remaining = dolSize;
-        uint32_t off = disc->dolOffset;
+        uint64_t off = disc->dolOffset;
         while (remaining > 0) {
             size_t chunk = remaining < BUF_SIZE ? remaining : BUF_SIZE;
             if (disc->read(disc, off, buf, chunk) < 0 ||
                 fwrite(buf, 1, chunk, out) != chunk) {
                 fclose(out); free(buf); return -1;
             }
-            off += (uint32_t)chunk;
+            off += chunk;
             remaining -= chunk;
         }
         fclose(out);
@@ -356,10 +357,11 @@ int gc_disc_extract_all(GCDisc* disc, const char* outputDir) {
         }
 
         if (e->size <= BUF_SIZE) {
-            if (disc->read(disc, e->discOffset, buf, e->size) < 0 ||
+            uint64_t shifted = (uint64_t)e->discOffset << disc->offsetShift;
+            if (disc->read(disc, shifted, buf, e->size) < 0 ||
                 write_buf(path, buf, e->size) < 0) {
-                siphon_log("extract failed at %s (off=0x%X sz=%u)",
-                        e->name, e->discOffset, e->size);
+                siphon_log("extract failed at %s (off=0x%" PRIx64 " sz=%u)",
+                        e->name, shifted, e->size);
                 ret = -1;
                 break;
             }
@@ -371,7 +373,7 @@ int gc_disc_extract_all(GCDisc* disc, const char* outputDir) {
                 break;
             }
             size_t remaining = e->size;
-            uint32_t off = e->discOffset;
+            uint64_t off = (uint64_t)e->discOffset << disc->offsetShift;
             while (remaining > 0) {
                 size_t chunk = remaining < BUF_SIZE ? remaining : BUF_SIZE;
                 if (disc->read(disc, off, buf, chunk) < 0 ||
@@ -380,7 +382,7 @@ int gc_disc_extract_all(GCDisc* disc, const char* outputDir) {
                     fclose(out); ret = -1;
                     goto done;
                 }
-                off += (uint32_t)chunk;
+                off += chunk;
                 remaining -= chunk;
             }
             fclose(out);
@@ -429,7 +431,7 @@ int gc_disc_read_file(GCDisc* disc, int index, void** out_buf, size_t* out_size)
     uint8_t* buf = (uint8_t*)malloc(e->size);
     if (!buf) return -1;
 
-    if (disc->read(disc, e->discOffset, buf, e->size) < 0) {
+    if (disc->read(disc, (uint64_t)e->discOffset << disc->offsetShift, buf, e->size) < 0) {
         free(buf);
         return -1;
     }

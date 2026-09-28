@@ -129,7 +129,7 @@ const GCEntry* gc_disc_entry(const GCDisc* disc, int index) {
     return &disc->entries[index];
 }
 
-int gc_disc_read(GCDisc* disc, uint32_t offset, void* buf, size_t size) {
+int gc_disc_read(GCDisc* disc, uint64_t offset, void* buf, size_t size) {
     if (!disc || !disc->read) return -1;
     return disc->read(disc, offset, buf, size);
 }
