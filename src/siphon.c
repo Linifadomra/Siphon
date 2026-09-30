@@ -226,6 +226,7 @@ SiphonError siphon_yaz0_decompress_file(const char* in, const char* out, SiphonL
     return SIPHON_OK;
 }
 
+// TODO: performance (Keep GCDisc* open across calls?)
 SiphonError siphon_disc_read_file(
     const char* image,
     const char* file_path,
@@ -235,7 +236,7 @@ SiphonError siphon_disc_read_file(
     void* userdata
 ) {
     install_logger(log, userdata);
-    if (!out_data || !out_size) return SIPHON_ERR_IO;
+    if (!out_data || !out_size || !file_path) return SIPHON_ERR_IO;
 
     GCDiscFormat fmt = gc_disc_detect_format(image);
     if (fmt == GC_FORMAT_UNKNOWN) {
@@ -249,6 +250,22 @@ SiphonError siphon_disc_read_file(
         return SIPHON_ERR_IO;
     }
 
+    void* buf = NULL;
+    size_t size = 0;
+
+    int sys = gc_disc_read_sys(disc, file_path, &buf, &size);
+    if (sys < 0) {
+        siphon_log("Error: failed to read system file '%s'", file_path);
+        gc_disc_close(disc);
+        return SIPHON_ERR_IO;
+    }
+    if (sys == 0) {
+        gc_disc_close(disc);
+        *out_data = buf;
+        *out_size = size;
+        return SIPHON_OK;
+    }
+
     int index = gc_disc_find_file(disc, file_path);
     if (index < 0) {
         siphon_log("Error: file '%s' not found in disc", file_path);
@@ -256,8 +273,6 @@ SiphonError siphon_disc_read_file(
         return SIPHON_ERR_NOT_FOUND;
     }
 
-    void* buf = NULL;
-    size_t size = 0;
     if (gc_disc_read_file(disc, index, &buf, &size) != 0) {
         siphon_log("Error: failed to read file '%s'", file_path);
         gc_disc_close(disc);

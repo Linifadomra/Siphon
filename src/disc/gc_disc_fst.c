@@ -6,6 +6,13 @@
 #include <inttypes.h>
 #include <sys/stat.h>
 
+#ifdef _MSC_VER
+    #define strcasecmp  _stricmp
+    #define strncasecmp _strnicmp
+#else
+    #include <strings.h>
+#endif
+
 static void mkdirs(const char* path) {
     char tmp[4096];
     snprintf(tmp, sizeof(tmp), "%s", path);
@@ -270,6 +277,38 @@ static int cmp_by_offset(const void* a, const void* b) {
     return 0;
 }
 
+static int dup_buf(const void* src, size_t n, void** out_buf, size_t* out_size) {
+    uint8_t* b = (uint8_t*)malloc(n ? n : 1);
+    if (!b) return -1;
+    memcpy(b, src, n);
+    *out_buf = b;
+    *out_size = n;
+    return 0;
+}
+
+int gc_disc_read_sys(GCDisc* disc, const char* path, void** out_buf, size_t* out_size) {
+    if (!disc || !path || strncmp(path, "sys/", 4) != 0) return 1;
+    const char* name = path + 4;
+
+    if (!strcasecmp(name, "boot.bin"))      return dup_buf(disc->boot, 0x440, out_buf, out_size);
+    if (!strcasecmp(name, "bi2.bin"))       return dup_buf(disc->bi2, 0x2000, out_buf, out_size);
+    if (!strcasecmp(name, "apploader.img")) return dup_buf(disc->apploader, disc->apploaderSize, out_buf, out_size);
+    if (!strcasecmp(name, "fst.bin"))       return dup_buf(disc->fstData, (size_t)disc->fstSize, out_buf, out_size);
+
+    if (!strcasecmp(name, "main.dol")) {
+        uint8_t hdr[0x100];
+        if (disc->read(disc, disc->dolOffset, hdr, sizeof(hdr)) < 0) return -1;
+        size_t dolSize = calc_dol_size(hdr);
+        uint8_t* buf = (uint8_t*)malloc(dolSize);
+        if (!buf) return -1;
+        if (disc->read(disc, disc->dolOffset, buf, dolSize) < 0) { free(buf); return -1; }
+        *out_buf = buf;
+        *out_size = dolSize;
+        return 0;
+    }
+    return 1;
+}
+
 int gc_disc_extract_all(GCDisc* disc, const char* outputDir) {
     if (!disc) return -1;
 
@@ -409,7 +448,7 @@ int gc_disc_find_file(GCDisc* disc, const char* path) {
     if (!disc || !path) return -1;
     for (uint32_t i = 1; i < disc->entryCount; i++) {
         if (disc->entries[i].type == GC_ENTRY_FILE) {
-            if (strcmp(disc->entries[i].name, path) == 0) {
+            if (strcasecmp(disc->entries[i].name, path) == 0) {
                 return (int)i;
             }
         }
