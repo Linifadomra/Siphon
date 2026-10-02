@@ -4,6 +4,13 @@
 #include <string.h>
 #include <zlib.h>
 
+
+#ifdef _MSC_VER
+    // Windows equivalents for POSIX types and functions
+    #define ftello _ftelli64
+    #define fseeko _fseeki64
+#endif
+
 typedef struct {
     uint32_t  blockSize;
     uint32_t  numBlocks;
