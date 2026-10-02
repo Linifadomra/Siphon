@@ -8,13 +8,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#ifdef _MSC_VER
-    // Windows equivalents for POSIX types and functions
-    typedef long long off_t;
-    #define ftello _ftelli64
-    #define fseeko _fseeki64
-#endif
-
 #define WIA_COMP_NONE  0
 #define WIA_COMP_PURGE 1
 #define WIA_COMP_BZIP2 2
@@ -116,7 +109,7 @@ static int wia_read_and_decompress(FILE* f, uint32_t compType, const uint8_t* pr
                                    uint64_t fileOff, uint32_t compSize,
                                    uint8_t* dst, size_t dstCap, size_t* outLen) {
     if (compType == WIA_COMP_NONE) {
-        if (fseeko(f, (off_t)fileOff, SEEK_SET) != 0) return -1;
+        if (fseeko(f, (int64_t)fileOff, SEEK_SET) != 0) return -1;
         size_t toRead = compSize < dstCap ? compSize : dstCap;
         if (fread(dst, 1, toRead, f) != toRead) return -1;
         *outLen = toRead;
@@ -125,7 +118,7 @@ static int wia_read_and_decompress(FILE* f, uint32_t compType, const uint8_t* pr
 
     uint8_t* compBuf = (uint8_t*)malloc(compSize);
     if (!compBuf) return -1;
-    if (fseeko(f, (off_t)fileOff, SEEK_SET) != 0) { free(compBuf); return -1; }
+    if (fseeko(f, (int64_t)fileOff, SEEK_SET) != 0) { free(compBuf); return -1; }
     if (fread(compBuf, 1, compSize, f) != compSize) { free(compBuf); return -1; }
 
     int ret = wia_decompress_buf(compType, props, compBuf, compSize, dst, dstCap, outLen);
@@ -380,7 +373,7 @@ static int wia_load_active_partition(GCDisc* disc, WIAData* wd, const uint8_t* h
     int found = -1;
     for (uint32_t i = 0; i < nPart; i++) {
         uint8_t pe[0x30];
-        if (fseeko(disc->file, (off_t)(partOff + (uint64_t)i * partSize), SEEK_SET) != 0 ||
+        if (fseeko(disc->file, (int64_t)(partOff + (uint64_t)i * partSize), SEEK_SET) != 0 ||
             fread(pe, 1, sizeof(pe), disc->file) != sizeof(pe)) {
             return -1;
         }

@@ -7,13 +7,6 @@
 #include <string.h>
 #include <zlib.h>
 
-#ifdef _MSC_VER
-    // Windows equivalents for POSIX types and functions
-    typedef long long off_t;
-    #define ftello _ftelli64
-    #define fseeko _fseeki64
-#endif
-
 typedef struct {
     uint32_t  blockSize;
     uint32_t  numBlocks;
@@ -43,7 +36,7 @@ static int gcz_decompress_block(GCDisc* disc, GCZData* gz, uint32_t blockIdx) {
     }
     size_t compSize = (size_t)(nextOff - fileOff);
 
-    if (fseeko(disc->file, (off_t)fileOff, SEEK_SET) != 0) return -1;
+    if (fseeko(disc->file, (int64_t)fileOff, SEEK_SET) != 0) return -1;
 
     if (uncompressed) {
         size_t toRead = gz->blockSize;

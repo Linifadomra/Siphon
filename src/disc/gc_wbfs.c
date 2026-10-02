@@ -5,12 +5,6 @@
 #include "siphon_log.h"
 #include <stdlib.h>
 #include <string.h>
-#ifdef _MSC_VER
-    // Windows equivalents for POSIX types and functions
-    typedef long long off_t;
-    #define ftello _ftelli64
-    #define fseeko _fseeki64
-#endif
 
 #define GC_DISC_SIZE  0x57058000u
 #define WII_DISC_SIZE 0x118580000u
@@ -36,9 +30,9 @@ static int wbfs_read(GCDisc* disc, uint64_t offset, void* buf, size_t size) {
             memset(out, 0, chunk);
         } else {
             uint64_t fileOff = (uint64_t)wb->wlbaTable[blockIdx] * wb->wbfsSectorSize + blockOff;
-            off_t cur = ftello(disc->file);
-            if (cur != (off_t)fileOff) {
-                if (fseeko(disc->file, (off_t)fileOff, SEEK_SET) != 0) return -1;
+            int64_t cur = ftello(disc->file);
+            if (cur != (int64_t)fileOff) {
+                if (fseeko(disc->file, (int64_t)fileOff, SEEK_SET) != 0) return -1;
             }
             if (fread(out, 1, chunk, disc->file) != chunk) return -1;
         }
@@ -80,7 +74,7 @@ int gc_wbfs_open(GCDisc* disc) {
     uint32_t wbfsSectorSize = 1u << wbfsShift;
 
     if (fseek(disc->file, 0, SEEK_END) != 0) return -1;
-    off_t fileSize = ftello(disc->file);
+    int64_t fileSize = ftello(disc->file);
     if (fileSize < 0) return -1;
 
     uint64_t wlbaOff = (uint64_t)hdSectorSize + 0x100;
@@ -104,7 +98,7 @@ int gc_wbfs_open(GCDisc* disc) {
     wb->wlbaTable = (uint16_t*)calloc(wb->wlbaCount, sizeof(uint16_t));
     if (!wb->wlbaTable) { free(wb); return -1; }
 
-    if (fseeko(disc->file, (off_t)wlbaOff, SEEK_SET) != 0) {
+    if (fseeko(disc->file, (int64_t)wlbaOff, SEEK_SET) != 0) {
         free(wb->wlbaTable); free(wb); return -1;
     }
 

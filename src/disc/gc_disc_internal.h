@@ -4,6 +4,11 @@
 #include <stdio.h>
 #include <confluence/types.h>
 
+#ifdef _MSC_VER
+    #define ftello _ftelli64
+    #define fseeko _fseeki64
+#endif
+
 typedef struct GCDisc GCDisc;
 
 typedef int (*gc_read_fn)(GCDisc* disc, uint64_t offset, void* buf, size_t size);
