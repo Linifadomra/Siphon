@@ -6,13 +6,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#ifdef _MSC_VER
-    // Windows equivalents for POSIX types and functions
-    typedef long long off_t;
-    #define ftello _ftelli64
-    #define fseeko _fseeki64
-#endif
-
 #define CISO_HEADER_SIZE 0x8000
 #define CISO_MAP_OFFSET  8
 #define CISO_MAP_SIZE    0x7FF8
@@ -41,7 +34,7 @@ static int ciso_read(GCDisc* disc, uint64_t offset, void* buf, size_t size) {
             uint64_t fileOff = (uint64_t)CISO_HEADER_SIZE +
                                (uint64_t)cd->presentBefore[blockIdx] * cd->blockSize +
                                blockOff;
-            if (fseeko(disc->file, (off_t)fileOff, SEEK_SET) != 0) return -1;
+            if (fseeko(disc->file, (int64_t)fileOff, SEEK_SET) != 0) return -1;
             if (fread(out, 1, chunk, disc->file) != chunk) return -1;
         }
 
