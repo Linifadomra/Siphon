@@ -31,3 +31,4 @@ siphon yaz0 decompress <in> -o <out>
 
 - zlib
 - zstd (optional, for ZSTD-compressed WIA/RVZ)
+- [Confluence](https://github.com/Linifadomra/Confluence)

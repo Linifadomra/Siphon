@@ -1,11 +1,23 @@
 #ifndef GC_DISC_INTERNAL_H
 #define GC_DISC_INTERNAL_H
 
-#include "gc_disc.h"
 #include <stdio.h>
+#include <confluence/types.h>
+
+typedef struct GCDisc GCDisc;
 
 typedef int (*gc_read_fn)(GCDisc* disc, uint64_t offset, void* buf, size_t size);
 typedef void (*gc_close_fn)(GCDisc* disc);
+
+typedef enum {
+    GC_FORMAT_UNKNOWN = 0,
+    GC_FORMAT_ISO,
+    GC_FORMAT_CISO,
+    GC_FORMAT_GCZ,
+    GC_FORMAT_WIA,
+    GC_FORMAT_RVZ,
+    GC_FORMAT_WBFS,
+} GCDiscFormat;
 
 struct GCDisc {
     FILE*        file;
@@ -15,9 +27,9 @@ struct GCDisc {
     void*        formatData;
 
     char     gameId[7];
-    uint32_t dolOffset;
-    uint32_t fstOffset;
-    uint32_t fstSize;
+    uint64_t dolOffset;
+    uint64_t fstOffset;
+    uint64_t fstSize;
 
     uint8_t  boot[0x440];
     uint8_t  bi2[0x2000];
@@ -63,4 +75,18 @@ int gc_wia_open(GCDisc* disc, int isRVZ);
 int gc_wii_wrap(GCDisc* disc);
 void gc_wii_free(GCDisc* disc);
 
+FILE*        gc_disc_fopen(const char* path);
+GCDiscFormat gc_disc_detect_format(const char* path);
+GCDisc*      gc_disc_open(const char* path);
+void         gc_disc_close(GCDisc* disc);
+GCDiscFormat gc_disc_format(const GCDisc* disc);
+const char*  gc_disc_game_id(const GCDisc* disc);
+int          gc_disc_entry_count(const GCDisc* disc);
+const GCEntry* gc_disc_entry(const GCDisc* disc, int index);
+int          gc_disc_read(GCDisc* disc, uint64_t offset, void* buf, size_t size);
+int          gc_disc_read_sys(GCDisc* disc, const char* path, void** out_buf, size_t* out_size);
+int          gc_disc_extract_all(GCDisc* disc, const char* outputDir);
+int          gc_disc_extract_file(GCDisc* disc, int index, const char* outputPath);
+int          gc_disc_find_file(GCDisc* disc, const char* path);
+int          gc_disc_read_file(GCDisc* disc, int index, void** out_buf, size_t* out_size);
 #endif

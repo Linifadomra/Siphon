@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(siphon VERSION 0.1.0 LANGUAGES C)
+project(siphon VERSION 1.0.0 LANGUAGES C)
 
 set(CMAKE_C_STANDARD 99)
 set(CMAKE_C_STANDARD_REQUIRED ON)
@@ -13,14 +13,30 @@ else()
 endif()
 
 # == Options ==
-option(BUILD_SIPHON_BINARY  "Build the siphon CLI executable"  OFF)
-option(BUILD_SHARED_LIBS    "Build siphon as a shared library" OFF)
-option(SIPHON_BUILD_TESTS "Build siphon tests"                 OFF)
+option(BUILD_SIPHON_CLI        "Build the siphon CLI executable"  OFF)
+option(BUILD_SHARED_LIBS       "Build siphon as a shared library" OFF)
+option(SIPHON_BUILD_TESTS      "Build siphon tests"               OFF)
+option(SIPHON_FETCH_CONFLUENCE "Automatically fetch Confluence"   OFF)
 
 # == Dependencies ==
 set(CONFLUENCE_DOL_YAML OFF CACHE BOOL "" FORCE)
 
-find_package(Confluence REQUIRED)
+if(SIPHON_FETCH_CONFLUENCE)
+    find_package(Confluence QUIET)
+else()
+    find_package(Confluence REQUIRED)
+endif()
+
+if(NOT TARGET confluence)
+    include(FetchContent)
+    FetchContent_Declare(
+        confluence
+        GIT_REPOSITORY https://github.com/Linifadomra/Confluence
+        GIT_TAG        b2b77930801dfe3fad4b05f2744f0573f592b615
+    )
+    FetchContent_MakeAvailable(confluence)
+endif()
+
 find_package(ZLIB REQUIRED)
 find_package(PkgConfig)
 if(PkgConfig_FOUND)
@@ -57,6 +73,12 @@ add_library(gc_disc STATIC
     src/encrypt/platform.c
 )
 
+if(CMAKE_SIZEOF_VOID_P MATCHES "4")
+    target_compile_definitions(gc_disc PRIVATE
+            _FILE_OFFSET_BITS=64
+    )
+endif()
+
 target_include_directories(gc_disc PUBLIC include PRIVATE src)
 target_link_libraries(gc_disc PRIVATE ZLIB::ZLIB PUBLIC gc_util Confluence::confluence)
 
@@ -80,16 +102,16 @@ set_target_properties(gc_util gc_disc PROPERTIES
     POSITION_INDEPENDENT_CODE ON
 )
 
-if(BUILD_SIPHON_BINARY)
-    add_executable(siphon cmd/cli.c src/siphon.c)
-    target_link_libraries(siphon PRIVATE gc_dol)
-else()
-    add_library(siphon src/siphon.c)
-    target_include_directories(siphon PUBLIC include)
-    target_link_libraries(siphon PUBLIC gc_dol)
-    set_target_properties(siphon PROPERTIES
+add_library(siphon src/siphon.c)
+target_include_directories(siphon PUBLIC include)
+target_link_libraries(siphon PUBLIC gc_dol)
+set_target_properties(siphon PROPERTIES
     VERSION   ${PROJECT_VERSION}
     SOVERSION ${PROJECT_VERSION_MAJOR})
+
+if(BUILD_SIPHON_CLI)
+    add_executable(siphon-cli cmd/cli.c)
+    target_link_libraries(siphon-cli PRIVATE siphon)
 endif()
 
 if(SIPHON_BUILD_TESTS)

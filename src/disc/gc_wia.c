@@ -1,9 +1,19 @@
+#define _FILE_OFFSET_BITS 64
+#define _POSIX_C_SOURCE 200809L
+
 #include "gc_disc_internal.h"
 #include "siphon_log.h"
 #include "gc_rvz.h"
 #include "lzma.h"
 #include <stdlib.h>
 #include <string.h>
+
+#ifdef _MSC_VER
+    // Windows equivalents for POSIX types and functions
+    typedef long long off_t;
+    #define ftello _ftelli64
+    #define fseeko _fseeki64
+#endif
 
 #define WIA_COMP_NONE  0
 #define WIA_COMP_PURGE 1
@@ -27,7 +37,7 @@ typedef struct {
 } WIARawData;
 
 typedef struct {
-    uint32_t fileOffset;
+    uint64_t fileOffset;
     uint32_t dataSize;     // RVZ: bit 31 = compressed flag
     uint32_t rvzPackedSize;
 } WIAGroup;
@@ -49,6 +59,7 @@ typedef struct {
     size_t    decompBufCap;
     uint32_t  decompBufSize;
     uint32_t  cachedGroupIdx;
+    size_t    cachedExceptSkip;
 
     uint8_t*  packedScratch;
     size_t    packedScratchCap;
@@ -105,7 +116,7 @@ static int wia_read_and_decompress(FILE* f, uint32_t compType, const uint8_t* pr
                                    uint64_t fileOff, uint32_t compSize,
                                    uint8_t* dst, size_t dstCap, size_t* outLen) {
     if (compType == WIA_COMP_NONE) {
-        if (fseek(f, (long)fileOff, SEEK_SET) != 0) return -1;
+        if (fseeko(f, (off_t)fileOff, SEEK_SET) != 0) return -1;
         size_t toRead = compSize < dstCap ? compSize : dstCap;
         if (fread(dst, 1, toRead, f) != toRead) return -1;
         *outLen = toRead;
@@ -114,7 +125,7 @@ static int wia_read_and_decompress(FILE* f, uint32_t compType, const uint8_t* pr
 
     uint8_t* compBuf = (uint8_t*)malloc(compSize);
     if (!compBuf) return -1;
-    if (fseek(f, (long)fileOff, SEEK_SET) != 0) { free(compBuf); return -1; }
+    if (fseeko(f, (off_t)fileOff, SEEK_SET) != 0) { free(compBuf); return -1; }
     if (fread(compBuf, 1, compSize, f) != compSize) { free(compBuf); return -1; }
 
     int ret = wia_decompress_buf(compType, props, compBuf, compSize, dst, dstCap, outLen);
@@ -122,14 +133,14 @@ static int wia_read_and_decompress(FILE* f, uint32_t compType, const uint8_t* pr
     return ret;
 }
 
-static size_t wia_except_header_size(WIAData* wd, const uint8_t* data, size_t len) {
+static size_t wia_except_header_size(WIAData* wd, const uint8_t* data, size_t len, uint32_t chunkCompType) {
     size_t eo = 0;
     for (uint32_t i = 0; i < wd->exceptLists; i++) {
         if (eo + 2 > len) return (size_t)-1;
         uint32_t ne = ((uint32_t)data[eo] << 8) | data[eo + 1];
         eo += 2 + ne * 22;
     }
-    if (wd->compType == WIA_COMP_NONE || wd->compType == WIA_COMP_PURGE) {
+    if (chunkCompType == WIA_COMP_NONE || chunkCompType == WIA_COMP_PURGE) {
         while (eo % 4 != 0) eo++;
     }
     return eo;
@@ -152,6 +163,7 @@ static int wia_decompress_group(GCDisc* disc, WIAData* wd, uint32_t groupIdx,
     if (compSize == 0) {
         memset(wd->decompBuf, 0, wd->chunkSize);
         wd->decompBufSize = wd->chunkSize;
+        wd->cachedExceptSkip = 0;
         wd->cachedGroupIdx = groupIdx;
         return 0;
     }
@@ -167,7 +179,7 @@ static int wia_decompress_group(GCDisc* disc, WIAData* wd, uint32_t groupIdx,
 
     size_t exceptSkip = 0;
     if (wd->isWii && isPartitionGroup) {
-        exceptSkip = wia_except_header_size(wd, wd->decompBuf, outLen);
+        exceptSkip = wia_except_header_size(wd, wd->decompBuf, outLen, effCompType);
         if (exceptSkip == (size_t)-1) return -1;
     }
 
@@ -193,6 +205,7 @@ static int wia_decompress_group(GCDisc* disc, WIAData* wd, uint32_t groupIdx,
     }
 
     wd->decompBufSize = (uint32_t)outLen;
+    wd->cachedExceptSkip = exceptSkip;
     wd->cachedGroupIdx = groupIdx;
     return 0;
 }
@@ -208,7 +221,7 @@ static int wia_read(GCDisc* disc, uint64_t offset, void* buf, size_t size) {
             if (chunk > remaining) chunk = remaining;
             memcpy(out, wd->discHeader + offset, chunk);
             out += chunk;
-            offset += (uint32_t)chunk;
+            offset += chunk;
             remaining -= chunk;
             continue;
         }
@@ -254,7 +267,7 @@ static int wia_read(GCDisc* disc, uint64_t offset, void* buf, size_t size) {
                 }
 
                 out      += chunk;
-                offset   += (uint32_t)chunk;
+                offset   += chunk;
                 localOff += chunk;
                 remaining -= chunk;
             }
@@ -264,7 +277,7 @@ static int wia_read(GCDisc* disc, uint64_t offset, void* buf, size_t size) {
         if (!found) {
             memset(out, 0, remaining);
             out += remaining;
-            offset += (uint32_t)remaining;
+            offset += remaining;
             remaining = 0;
         }
     }
@@ -299,8 +312,7 @@ static int wia_part_read(GCDisc* disc, uint64_t offset, void* buf, size_t size) 
         if (group >= wd->numGroups) { memset(out, 0, size); return 0; }
         if (wia_decompress_group(disc, wd, group, dataOff, 1) < 0) return -1;
 
-        size_t eo = wia_except_header_size(wd, wd->decompBuf, wd->decompBufSize);
-        if (eo == (size_t)-1) return -1;
+        size_t eo = wd->cachedExceptSkip;
 
         uint32_t secInGroup = secInPd % wd->sectorsPerGroup;
         uint32_t srcPos = (uint32_t)eo + secInGroup * SD + intra;
@@ -318,7 +330,7 @@ static int wia_part_read(GCDisc* disc, uint64_t offset, void* buf, size_t size) 
         }
 
         out    += chunk;
-        offset += (uint32_t)chunk;
+        offset += chunk;
         size   -= chunk;
     }
     return 0;
@@ -368,7 +380,7 @@ static int wia_load_active_partition(GCDisc* disc, WIAData* wd, const uint8_t* h
     int found = -1;
     for (uint32_t i = 0; i < nPart; i++) {
         uint8_t pe[0x30];
-        if (fseek(disc->file, (long)(partOff + (uint64_t)i * partSize), SEEK_SET) != 0 ||
+        if (fseeko(disc->file, (off_t)(partOff + (uint64_t)i * partSize), SEEK_SET) != 0 ||
             fread(pe, 1, sizeof(pe), disc->file) != sizeof(pe)) {
             return -1;
         }
@@ -410,7 +422,7 @@ static void wia_close(GCDisc* disc) {
 int gc_wia_open(GCDisc* disc, int isRVZ) {
     const char* kind = isRVZ ? "RVZ" : "WIA";
     uint8_t hdrs[0x48 + 0xDC];
-    if (fseek(disc->file, 0, SEEK_SET) != 0) return -1;
+    if (fseeko(disc->file, 0, SEEK_SET) != 0) return -1;
     if (fread(hdrs, 1, sizeof(hdrs), disc->file) != sizeof(hdrs)) {
         siphon_log("%s header truncated", kind);
         return -1;
@@ -505,7 +517,7 @@ int gc_wia_open(GCDisc* disc, int isRVZ) {
 
     for (uint32_t i = 0; i < wd->numGroups; i++) {
         const uint8_t* e = grpBuf + i * grpEntrySize;
-        wd->groups[i].fileOffset = gc_be32(e + 0) << 2;
+        wd->groups[i].fileOffset = (uint64_t)gc_be32(e + 0) << 2;
         wd->groups[i].dataSize   = gc_be32(e + 4);
         if (isRVZ && grpEntrySize >= 0x0C) {
             wd->groups[i].rvzPackedSize = gc_be32(e + 8);

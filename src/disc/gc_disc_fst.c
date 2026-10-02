@@ -3,7 +3,15 @@
 #include "siphon_log.h"
 #include <stdlib.h>
 #include <string.h>
+#include <inttypes.h>
 #include <sys/stat.h>
+
+#ifdef _MSC_VER
+    #define strcasecmp  _stricmp
+    #define strncasecmp _strnicmp
+#else
+    #include <strings.h>
+#endif
 
 static void mkdirs(const char* path) {
     char tmp[4096];
@@ -42,9 +50,9 @@ int gc_disc_parse_fst(GCDisc* disc) {
     memcpy(disc->gameId, disc->boot, 6);
     disc->gameId[6] = '\0';
 
-    disc->dolOffset = gc_be32(disc->boot + 0x420) << disc->offsetShift;
-    disc->fstOffset = gc_be32(disc->boot + 0x424) << disc->offsetShift;
-    disc->fstSize   = gc_be32(disc->boot + 0x428) << disc->offsetShift;
+    disc->dolOffset = (uint64_t)gc_be32(disc->boot + 0x420) << disc->offsetShift;
+    disc->fstOffset = (uint64_t)gc_be32(disc->boot + 0x424) << disc->offsetShift;
+    disc->fstSize   = (uint64_t)gc_be32(disc->boot + 0x428) << disc->offsetShift;
 
     if (disc->read(disc, 0x440, disc->bi2, 0x2000) < 0) {
         siphon_log("FST: bi2 read failed");
@@ -71,11 +79,11 @@ int gc_disc_parse_fst(GCDisc* disc) {
 
     disc->fstData = (uint8_t*)malloc(disc->fstSize);
     if (!disc->fstData) {
-        siphon_log("FST: fst alloc failed (size=0x%X)", disc->fstSize);
+        siphon_log("FST: fst alloc failed (size=0x%" PRIx64 ")", disc->fstSize);
         return -1;
     }
     if (disc->read(disc, disc->fstOffset, disc->fstData, disc->fstSize) < 0) {
-        siphon_log("FST: fst read failed at 0x%X size=0x%X", disc->fstOffset, disc->fstSize);
+        siphon_log("FST: fst read failed at 0x%" PRIx64 " size=0x%" PRIx64, disc->fstOffset, disc->fstSize);
         return -1;
     }
 
@@ -162,7 +170,7 @@ int gc_disc_parse_fst(GCDisc* disc) {
         *pathWrite++ = '\0';
 
         disc->entries[i].name = pathStart;
-        disc->entries[i].discOffset = gc_be32(e + 4) << disc->offsetShift;
+        disc->entries[i].discOffset = gc_be32(e + 4);
         disc->entries[i].size = gc_be32(e + 8);
 
         if (e[0]) {
@@ -235,7 +243,7 @@ int gc_disc_extract_file(GCDisc* disc, int index, const char* outputPath) {
     int ret = 0;
 
     if (e->size <= BUF_SIZE) {
-        if (disc->read(disc, e->discOffset, buf, e->size) < 0 ||
+        if (disc->read(disc, (uint64_t)e->discOffset << disc->offsetShift, buf, e->size) < 0 ||
             write_buf(outputPath, buf, e->size) < 0) {
             ret = -1;
         }
@@ -243,7 +251,7 @@ int gc_disc_extract_file(GCDisc* disc, int index, const char* outputPath) {
         FILE* out = fopen(outputPath, "wb");
         if (!out) { free(buf); return -1; }
         size_t remaining = e->size;
-        uint32_t off = e->discOffset;
+        uint64_t off = (uint64_t)e->discOffset << disc->offsetShift;
         while (remaining > 0) {
             size_t chunk = remaining < BUF_SIZE ? remaining : BUF_SIZE;
             if (disc->read(disc, off, buf, chunk) < 0 ||
@@ -251,7 +259,7 @@ int gc_disc_extract_file(GCDisc* disc, int index, const char* outputPath) {
                 ret = -1;
                 break;
             }
-            off += (uint32_t)chunk;
+            off += chunk;
             remaining -= chunk;
         }
         fclose(out);
@@ -262,11 +270,43 @@ int gc_disc_extract_file(GCDisc* disc, int index, const char* outputPath) {
 }
 
 static int cmp_by_offset(const void* a, const void* b) {
-    uint32_t oa = ((const GCEntry*)a)->discOffset;
-    uint32_t ob = ((const GCEntry*)b)->discOffset;
+    uint64_t oa = ((const GCEntry*)a)->discOffset;
+    uint64_t ob = ((const GCEntry*)b)->discOffset;
     if (oa < ob) return -1;
     if (oa > ob) return 1;
     return 0;
+}
+
+static int dup_buf(const void* src, size_t n, void** out_buf, size_t* out_size) {
+    uint8_t* b = (uint8_t*)malloc(n ? n : 1);
+    if (!b) return -1;
+    memcpy(b, src, n);
+    *out_buf = b;
+    *out_size = n;
+    return 0;
+}
+
+int gc_disc_read_sys(GCDisc* disc, const char* path, void** out_buf, size_t* out_size) {
+    if (!disc || !path || strncmp(path, "sys/", 4) != 0) return 1;
+    const char* name = path + 4;
+
+    if (!strcasecmp(name, "boot.bin"))      return dup_buf(disc->boot, 0x440, out_buf, out_size);
+    if (!strcasecmp(name, "bi2.bin"))       return dup_buf(disc->bi2, 0x2000, out_buf, out_size);
+    if (!strcasecmp(name, "apploader.img")) return dup_buf(disc->apploader, disc->apploaderSize, out_buf, out_size);
+    if (!strcasecmp(name, "fst.bin"))       return dup_buf(disc->fstData, (size_t)disc->fstSize, out_buf, out_size);
+
+    if (!strcasecmp(name, "main.dol")) {
+        uint8_t hdr[0x100];
+        if (disc->read(disc, disc->dolOffset, hdr, sizeof(hdr)) < 0) return -1;
+        size_t dolSize = calc_dol_size(hdr);
+        uint8_t* buf = (uint8_t*)malloc(dolSize);
+        if (!buf) return -1;
+        if (disc->read(disc, disc->dolOffset, buf, dolSize) < 0) { free(buf); return -1; }
+        *out_buf = buf;
+        *out_size = dolSize;
+        return 0;
+    }
+    return 1;
 }
 
 int gc_disc_extract_all(GCDisc* disc, const char* outputDir) {
@@ -304,14 +344,14 @@ int gc_disc_extract_all(GCDisc* disc, const char* outputDir) {
         FILE* out = fopen(path, "wb");
         if (!out) { free(buf); return -1; }
         size_t remaining = dolSize;
-        uint32_t off = disc->dolOffset;
+        uint64_t off = disc->dolOffset;
         while (remaining > 0) {
             size_t chunk = remaining < BUF_SIZE ? remaining : BUF_SIZE;
             if (disc->read(disc, off, buf, chunk) < 0 ||
                 fwrite(buf, 1, chunk, out) != chunk) {
                 fclose(out); free(buf); return -1;
             }
-            off += (uint32_t)chunk;
+            off += chunk;
             remaining -= chunk;
         }
         fclose(out);
@@ -356,10 +396,11 @@ int gc_disc_extract_all(GCDisc* disc, const char* outputDir) {
         }
 
         if (e->size <= BUF_SIZE) {
-            if (disc->read(disc, e->discOffset, buf, e->size) < 0 ||
+            uint64_t shifted = (uint64_t)e->discOffset << disc->offsetShift;
+            if (disc->read(disc, shifted, buf, e->size) < 0 ||
                 write_buf(path, buf, e->size) < 0) {
-                siphon_log("extract failed at %s (off=0x%X sz=%u)",
-                        e->name, e->discOffset, e->size);
+                siphon_log("extract failed at %s (off=0x%" PRIx64 " sz=%u)",
+                        e->name, shifted, e->size);
                 ret = -1;
                 break;
             }
@@ -371,7 +412,7 @@ int gc_disc_extract_all(GCDisc* disc, const char* outputDir) {
                 break;
             }
             size_t remaining = e->size;
-            uint32_t off = e->discOffset;
+            uint64_t off = (uint64_t)e->discOffset << disc->offsetShift;
             while (remaining > 0) {
                 size_t chunk = remaining < BUF_SIZE ? remaining : BUF_SIZE;
                 if (disc->read(disc, off, buf, chunk) < 0 ||
@@ -380,7 +421,7 @@ int gc_disc_extract_all(GCDisc* disc, const char* outputDir) {
                     fclose(out); ret = -1;
                     goto done;
                 }
-                off += (uint32_t)chunk;
+                off += chunk;
                 remaining -= chunk;
             }
             fclose(out);
@@ -401,4 +442,40 @@ done:
     free(sorted);
     free(buf);
     return ret;
+}
+
+int gc_disc_find_file(GCDisc* disc, const char* path) {
+    if (!disc || !path) return -1;
+    for (uint32_t i = 1; i < disc->entryCount; i++) {
+        if (disc->entries[i].type == GC_ENTRY_FILE) {
+            if (strcasecmp(disc->entries[i].name, path) == 0) {
+                return (int)i;
+            }
+        }
+    }
+    return -1;
+}
+
+int gc_disc_read_file(GCDisc* disc, int index, void** out_buf, size_t* out_size) {
+    if (!disc || index < 0 || (uint32_t)index >= disc->entryCount) return -1;
+    const GCEntry* e = &disc->entries[index];
+    if (e->type != GC_ENTRY_FILE) return -1;
+
+    if (e->size == 0) {
+        *out_buf = NULL;
+        *out_size = 0;
+        return 0;
+    }
+
+    uint8_t* buf = (uint8_t*)malloc(e->size);
+    if (!buf) return -1;
+
+    if (disc->read(disc, (uint64_t)e->discOffset << disc->offsetShift, buf, e->size) < 0) {
+        free(buf);
+        return -1;
+    }
+
+    *out_buf = buf;
+    *out_size = e->size;
+    return 0;
 }

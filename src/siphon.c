@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "gc_disc.h"
+#include "disc/gc_disc_internal.h"
 #include <confluence/dol.h>
 #include <confluence/yaz0.h>
 #include <confluence/rarc.h>
@@ -95,7 +95,7 @@ SiphonError siphon_disc_extract(
 
     const char* id = gc_disc_game_id(disc);
     siphon_log("Game ID: %s", id);
-    if (expect_ids && num_ids > 0) {
+    if (expect_ids != NULL && num_ids > 0) {
         int matched = 0;
         for (size_t i = 0; i < num_ids; i++) {
             if (expect_ids[i] && strncmp(id, expect_ids[i], 6) == 0) {
@@ -223,5 +223,64 @@ SiphonError siphon_yaz0_decompress_file(const char* in, const char* out, SiphonL
         siphon_log("Error: write %s failed", out);
         return SIPHON_ERR_IO;
     }
+    return SIPHON_OK;
+}
+
+// TODO: performance (Keep GCDisc* open across calls?)
+SiphonError siphon_disc_read_file(
+    const char* image,
+    const char* file_path,
+    void** out_data,
+    size_t* out_size,
+    SiphonLogFn log,
+    void* userdata
+) {
+    install_logger(log, userdata);
+    if (!out_data || !out_size || !file_path) return SIPHON_ERR_IO;
+
+    GCDiscFormat fmt = gc_disc_detect_format(image);
+    if (fmt == GC_FORMAT_UNKNOWN) {
+        siphon_log("Error: unrecognized disc image format");
+        return SIPHON_ERR_FORMAT;
+    }
+
+    GCDisc* disc = gc_disc_open(image);
+    if (!disc) {
+        siphon_log("Error: failed to open disc image");
+        return SIPHON_ERR_IO;
+    }
+
+    void* buf = NULL;
+    size_t size = 0;
+
+    int sys = gc_disc_read_sys(disc, file_path, &buf, &size);
+    if (sys < 0) {
+        siphon_log("Error: failed to read system file '%s'", file_path);
+        gc_disc_close(disc);
+        return SIPHON_ERR_IO;
+    }
+    if (sys == 0) {
+        gc_disc_close(disc);
+        *out_data = buf;
+        *out_size = size;
+        return SIPHON_OK;
+    }
+
+    int index = gc_disc_find_file(disc, file_path);
+    if (index < 0) {
+        siphon_log("Error: file '%s' not found in disc", file_path);
+        gc_disc_close(disc);
+        return SIPHON_ERR_NOT_FOUND;
+    }
+
+    if (gc_disc_read_file(disc, index, &buf, &size) != 0) {
+        siphon_log("Error: failed to read file '%s'", file_path);
+        gc_disc_close(disc);
+        return SIPHON_ERR_IO;
+    }
+
+    gc_disc_close(disc);
+    *out_data = buf;
+    *out_size = size;
     return SIPHON_OK;
 }

@@ -17,7 +17,7 @@ void siphon_log(const char* fmt, ...) {
     int n = vsnprintf(buf, sizeof(buf), fmt, ap);
     va_end(ap);
     if (n > 0 && (size_t)n < sizeof(buf) && buf[n-1] == '\n') buf[n-1] = '\0';
-    if (g_fn) {
+    if (g_fn != NULL) {
         g_fn(g_ud, buf);
     } else {
         fputs(buf, stderr);

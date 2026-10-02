@@ -1,0 +1,140 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: linux
+            arch: x86_64
+            artifact_ext: tar.gz
+          - os: macos-latest
+            platform: macos
+            arch: arm64
+            artifact_ext: tar.gz
+          - os: windows-latest
+            platform: windows
+            arch: x86_64
+            artifact_ext: zip
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          lfs: true
+
+      - name: Install dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build libzstd-dev zlib1g-dev libyaml-dev
+
+      - name: Install dependencies (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew install cmake ninja zstd libyaml
+
+      - name: Install dependencies (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          choco install cmake ninja -y
+          vcpkg install zstd zlib libyaml
+
+      - name: Build Confluence (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          git clone https://github.com/Linifadomra/Confluence.git
+          cmake -B Confluence/build -S Confluence \
+            -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX=${{ runner.os == 'macOS' && '/usr/local' || '/usr/local' }}
+          cmake --build Confluence/build
+          sudo cmake --install Confluence/build
+
+      - name: Build Confluence (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          git clone https://github.com/Linifadomra/Confluence.git
+          cmake -B Confluence/build -S Confluence `
+            -G Ninja `
+            -DCMAKE_BUILD_TYPE=Release `
+            -DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake `
+            -DCMAKE_INSTALL_PREFIX=C:/Confluence
+          cmake --build Confluence/build
+          cmake --install Confluence/build
+
+      - name: Configure (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          cmake -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DBUILD_SIPHON_CLI=ON
+
+      - name: Configure (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          cmake -B build -G Ninja `
+            -DCMAKE_BUILD_TYPE=Release `
+            -DBUILD_SIPHON_CLI=ON `
+            -DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake `
+            -DCMAKE_PREFIX_PATH=C:/Confluence
+
+      - name: Build
+        run: cmake --build build
+
+      - name: Package artifacts (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          mkdir -p release/bin release/lib release/include
+          cp build/siphon-cli release/bin/siphon
+          cp build/libsiphon.* release/lib/ || true
+          cp -r include/* release/include/
+          tar -czf siphon-${{ matrix.platform }}-${{ matrix.arch }}.tar.gz -C release .
+
+      - name: Package artifacts (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path release/bin, release/lib, release/include
+          Copy-Item build/siphon-cli.exe release/bin/siphon.exe
+          Copy-Item build/siphon.lib release/lib/ -ErrorAction SilentlyContinue
+          Copy-Item build/siphon.dll release/bin/ -ErrorAction SilentlyContinue
+          Copy-Item -Recurse include/* release/include/
+          Compress-Archive -Path release/* -DestinationPath siphon-${{ matrix.platform }}-${{ matrix.arch }}.zip
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: siphon-${{ matrix.platform }}-${{ matrix.arch }}
+          path: siphon-${{ matrix.platform }}-${{ matrix.arch }}.${{ matrix.artifact_ext }}
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: artifacts/*/siphon-*
+          draft: false
+          prerelease: ${{ contains(github.ref, 'alpha') || contains(github.ref, 'beta') || contains(github.ref, 'rc') }}
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

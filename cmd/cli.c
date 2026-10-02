@@ -3,6 +3,13 @@
 #include <string.h>
 #include "siphon.h"
 
+#ifdef _MSC_VER
+    #define strcasecmp  _stricmp
+    #define strncasecmp _strnicmp
+#else
+    #include <strings.h>
+#endif
+
 static const char* siphon_error_str(SiphonError err) {
     switch (err) {
         case SIPHON_OK:             return "ok";
@@ -38,7 +45,7 @@ static int cmd_disc(int argc, char* argv[]) {
     const char* expect_id = NULL;
 
     for (int i = 0; i < argc; i++) {
-        if (strcmp(argv[i], "--expect-id") == 0 && i + 1 < argc) {
+        if (strcasecmp(argv[i], "--expect-id") == 0 && i + 1 < argc) {
             expect_id = argv[++i];
         } else if (!image) {
             image = argv[i];
@@ -101,17 +108,17 @@ static int cmd_arc_cp(const char* spec, const char* out_path) {
 }
 
 static int cmd_arc(int argc, char* argv[]) {
-    if (argc >= 2 && strcmp(argv[0], "ls") == 0) return cmd_arc_ls(argv[1]);
-    if (argc == 3 && strcmp(argv[0], "cp") == 0) return cmd_arc_cp(argv[1], argv[2]);
+    if (argc >= 2 && strcasecmp(argv[0], "ls") == 0) return cmd_arc_ls(argv[1]);
+    if (argc == 3 && strcasecmp(argv[0], "cp") == 0) return cmd_arc_cp(argv[1], argv[2]);
     if (argc == 2) return cmd_arc_extract(argv[0], argv[1]);
     return usage();
 }
 
 static int cmd_yaz0(int argc, char* argv[]) {
-    if (argc < 2 || strcmp(argv[0], "decompress") != 0) return usage();
+    if (argc < 2 || strcasecmp(argv[0], "decompress") != 0) return usage();
     const char* in = argv[1];
     const char* out = NULL;
-    if (argc == 4 && strcmp(argv[2], "-o") == 0) out = argv[3];
+    if (argc == 4 && strcasecmp(argv[2], "-o") == 0) out = argv[3];
     else if (argc == 3) out = argv[2];
     else return usage();
     SiphonError err = siphon_yaz0_decompress_file(in, out,cli_log,NULL);
@@ -125,8 +132,8 @@ static int cmd_yaz0(int argc, char* argv[]) {
 int main(int argc, char* argv[]) {
     if (argc < 2) return usage();
     const char* sub = argv[1];
-    if      (strcmp(sub, "disc") == 0) return cmd_disc(argc - 2, argv + 2);
-    else if (strcmp(sub, "arc")  == 0) return cmd_arc (argc - 2, argv + 2);
-    else if (strcmp(sub, "yaz0") == 0) return cmd_yaz0(argc - 2, argv + 2);
+    if      (strcasecmp(sub, "disc") == 0) return cmd_disc(argc - 2, argv + 2);
+    else if (strcasecmp(sub, "arc")  == 0) return cmd_arc (argc - 2, argv + 2);
+    else if (strcasecmp(sub, "yaz0") == 0) return cmd_yaz0(argc - 2, argv + 2);
     return usage();
 }
