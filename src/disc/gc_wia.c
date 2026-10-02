@@ -59,6 +59,7 @@ typedef struct {
     size_t    decompBufCap;
     uint32_t  decompBufSize;
     uint32_t  cachedGroupIdx;
+    size_t    cachedExceptSkip;
 
     uint8_t*  packedScratch;
     size_t    packedScratchCap;
@@ -132,14 +133,14 @@ static int wia_read_and_decompress(FILE* f, uint32_t compType, const uint8_t* pr
     return ret;
 }
 
-static size_t wia_except_header_size(WIAData* wd, const uint8_t* data, size_t len) {
+static size_t wia_except_header_size(WIAData* wd, const uint8_t* data, size_t len, uint32_t chunkCompType) {
     size_t eo = 0;
     for (uint32_t i = 0; i < wd->exceptLists; i++) {
         if (eo + 2 > len) return (size_t)-1;
         uint32_t ne = ((uint32_t)data[eo] << 8) | data[eo + 1];
         eo += 2 + ne * 22;
     }
-    if (wd->compType == WIA_COMP_NONE || wd->compType == WIA_COMP_PURGE) {
+    if (chunkCompType == WIA_COMP_NONE || chunkCompType == WIA_COMP_PURGE) {
         while (eo % 4 != 0) eo++;
     }
     return eo;
@@ -162,6 +163,7 @@ static int wia_decompress_group(GCDisc* disc, WIAData* wd, uint32_t groupIdx,
     if (compSize == 0) {
         memset(wd->decompBuf, 0, wd->chunkSize);
         wd->decompBufSize = wd->chunkSize;
+        wd->cachedExceptSkip = 0;
         wd->cachedGroupIdx = groupIdx;
         return 0;
     }
@@ -177,7 +179,7 @@ static int wia_decompress_group(GCDisc* disc, WIAData* wd, uint32_t groupIdx,
 
     size_t exceptSkip = 0;
     if (wd->isWii && isPartitionGroup) {
-        exceptSkip = wia_except_header_size(wd, wd->decompBuf, outLen);
+        exceptSkip = wia_except_header_size(wd, wd->decompBuf, outLen, effCompType);
         if (exceptSkip == (size_t)-1) return -1;
     }
 
@@ -203,6 +205,7 @@ static int wia_decompress_group(GCDisc* disc, WIAData* wd, uint32_t groupIdx,
     }
 
     wd->decompBufSize = (uint32_t)outLen;
+    wd->cachedExceptSkip = exceptSkip;
     wd->cachedGroupIdx = groupIdx;
     return 0;
 }
@@ -309,8 +312,7 @@ static int wia_part_read(GCDisc* disc, uint64_t offset, void* buf, size_t size) 
         if (group >= wd->numGroups) { memset(out, 0, size); return 0; }
         if (wia_decompress_group(disc, wd, group, dataOff, 1) < 0) return -1;
 
-        size_t eo = wia_except_header_size(wd, wd->decompBuf, wd->decompBufSize);
-        if (eo == (size_t)-1) return -1;
+        size_t eo = wd->cachedExceptSkip;
 
         uint32_t secInGroup = secInPd % wd->sectorsPerGroup;
         uint32_t srcPos = (uint32_t)eo + secInGroup * SD + intra;
