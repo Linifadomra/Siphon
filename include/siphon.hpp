@@ -142,6 +142,55 @@ inline Error yaz0DecompressFile(const std::string& in, const std::string& out,
     return siphon_yaz0_decompress_file(in.c_str(), out.c_str(), log, userdata);
 }
 
+using Disc = SiphonDisc;
+using EntryFn = SiphonEntryFn;
+
+/**
+ * @brief Opens a disc and returns a disc handle
+ *
+ * @param image Path to the disc image
+ * @param out Disc handle
+ * @returns 0 if the disc opened successfuly. A SiphonError otherwise.
+ */
+inline Error discOpen(const std::string& image, SiphonDisc** out) {
+    return siphon_disc_open(image.c_str(), out);
+}
+
+/**
+ * @brief Closes a disc handle
+ *
+ * @param disc The handle to close
+ */
+inline void discClose(SiphonDisc* disc) {
+    siphon_disc_close(disc);
+}
+
+/**
+ * @brief Walks the disc's file table, calling a callback for each entry
+ *
+ * @param disc A disc handle
+ * @param on_entry One callback per siphon entry
+ * @param data Data passed in to the callback
+ * @returns 0 if the disc was walked successfuly. A SiphonError otherwise.
+ */
+inline Error discList(SiphonDisc* disc, SiphonEntryFn on_entry, void* data = nullptr) {
+    return siphon_disc_list(disc, on_entry, data);
+}
+
+/**
+ * @brief Reads a file from an opened disc into memory
+ *
+ * @param disc A handle returned by discOpen
+ * @param path The path of the file inside the disc
+ * @param outData The file's data
+ * @param outSize Files sizes in bytes
+ * @returns 0 if the file was read successfuly. A SiphonError otherwise.
+ */
+inline Error discRead(SiphonDisc* disc, const std::string& path,
+                       void** outData, size_t* outSize) {
+    return siphon_disc_read(disc, path.c_str(), outData, outSize);
+}
+
 } // namespace siphon
 
 #endif // SIPHON_HPP

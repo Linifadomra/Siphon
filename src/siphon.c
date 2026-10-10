@@ -284,3 +284,65 @@ SiphonError siphon_disc_read_file(
     *out_size = size;
     return SIPHON_OK;
 }
+
+struct SiphonDisc {
+    GCDisc* disc;
+};
+
+SiphonError siphon_disc_open(const char* image, SiphonDisc** out) {
+    if (!out) return SIPHON_ERR_IO;
+    *out = NULL;
+
+    GCDiscFormat fmt = gc_disc_detect_format(image);
+    if (fmt == GC_FORMAT_UNKNOWN) {
+        siphon_log("Error: unrecognized disc image format");
+        return SIPHON_ERR_FORMAT;
+    }
+
+    GCDisc* disc = gc_disc_open(image);
+    if (!disc) {
+        siphon_log("Error: failed to open disc image");
+        return SIPHON_ERR_IO;
+    }
+
+    SiphonDisc* handle = (SiphonDisc*)malloc(sizeof(SiphonDisc));
+    if (!handle) {
+        gc_disc_close(disc);
+        return SIPHON_ERR_IO;
+    }
+    handle->disc = disc;
+    *out = handle;
+    return SIPHON_OK;
+}
+
+void siphon_disc_close(SiphonDisc* disc) {
+    if (!disc) return;
+    gc_disc_close(disc->disc);
+    free(disc);
+}
+
+SiphonError siphon_disc_list(SiphonDisc* disc, SiphonEntryFn on_entry, void* data) {
+    if (!disc || !on_entry) return SIPHON_ERR_IO;
+    int n = gc_disc_entry_count(disc->disc);
+    for (int i = 0; i < n; i++) {
+        const GCEntry* e = gc_disc_entry(disc->disc, i);
+        if (!e || !e->name) continue;
+        on_entry(data, e->name, (size_t)e->size, e->type == GC_ENTRY_DIR);
+    }
+    return SIPHON_OK;
+}
+
+SiphonError siphon_disc_read(SiphonDisc* disc, const char* path, void** out_data, size_t* out_size) {
+    if (!disc || !path || !out_data || !out_size) return SIPHON_ERR_IO;
+
+    int index = gc_disc_find_file(disc->disc, path);
+    if (index < 0) {
+        siphon_log("Error: file '%s' not found in disc", path);
+        return SIPHON_ERR_NOT_FOUND;
+    }
+    if (gc_disc_read_file(disc->disc, index, out_data, out_size) != 0) {
+        siphon_log("Error: failed to read file '%s'", path);
+        return SIPHON_ERR_IO;
+    }
+    return SIPHON_OK;
+}

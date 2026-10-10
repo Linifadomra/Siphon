@@ -168,6 +168,59 @@ SiphonError siphon_yaz0_decompress_file(
     void* userdata
 );
 
+/**
+ * @brief Siphon Disc Handle
+ *
+ */
+typedef struct SiphonDisc SiphonDisc;
+
+/**
+ * @brief Siphon entry (file + folder) callback
+ *
+ * @param data Data passed in to the callback
+ * @param path File path path
+ * @param size File size in bytes (0 for folder)
+ * @param is_dir 1 if the entry is a folder
+ */
+typedef void (*SiphonEntryFn)(void* data, const char* path, size_t size, int is_dir);
+
+/**
+ * @brief Opens a disc image and returns a disc handle
+ *
+ * @param image The path to the disc image
+ * @param out A pointer to receive the handle
+ * @returns 0 if the disc opened successfuly. A SiphonError otherwise.
+ */
+SiphonError siphon_disc_open(const char* image, SiphonDisc** out);
+
+/**
+ * @brief Closes a disc handle
+ *
+ * @param disc The handle to close
+ */
+void siphon_disc_close(SiphonDisc* disc);
+
+/**
+ * @brief Walks the disc file table, calling a callback for each entry
+ *
+ * @param disc A disc handle
+ * @param on_entry One callback per siphon entry
+ * @param data Data passed in to the callback
+ * @returns 0 if the disc closed successfuly. A SiphonError otherwise.
+ */
+SiphonError siphon_disc_list(SiphonDisc* disc, SiphonEntryFn on_entry, void* data);
+
+/**
+ * @brief Reads a file from an opened disc into memory
+ *
+ * @param disc A handle returned by siphon_disc_open
+ * @param path The path of the file inside the disc
+ * @param out_data The file's data
+ * @param out_size Files sizes in bytes
+ * @returns 0 if the file opened successfuly. A SiphonError otherwise.
+ */
+SiphonError siphon_disc_read(SiphonDisc* disc, const char* path, void** out_data, size_t* out_size);
+
 #ifdef __cplusplus
 }
 #endif
