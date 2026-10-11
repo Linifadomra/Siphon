@@ -68,6 +68,7 @@ add_library(gc_disc STATIC
     src/disc/gc_wbfs.c
     src/disc/gc_rvz.c
     src/disc/gc_wii.c
+    src/disc/wiiu_disc.c
     src/disc/lzma.c
     src/encrypt/aes.c
     src/encrypt/platform.c
