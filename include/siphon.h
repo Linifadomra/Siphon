@@ -194,6 +194,16 @@ typedef void (*SiphonEntryFn)(void* data, const char* path, size_t size, int is_
 SiphonError siphon_disc_open(const char* image, SiphonDisc** out);
 
 /**
+ * @brief Opens a Wii U disc image with keys.txt and returns a disc handle
+ *
+ * @param image The path to the Wii U disc image
+ * @param keys_path Path to keys.txt
+ * @param out A pointer to receive the handle
+ * @returns 0 if the disc opened successfully. A SiphonError otherwise.
+ */
+SiphonError siphon_disc_open_wiiu(const char* image, const char* keys_path, SiphonDisc** out);
+
+/**
  * @brief Closes a disc handle
  *
  * @param disc The handle to close

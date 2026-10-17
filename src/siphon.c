@@ -307,12 +307,17 @@ SiphonError siphon_disc_read_file(
 }
 
 struct SiphonDisc {
-    GCDisc* disc;
+    GCDisc* gc;
+    WiiUDisc* wiiu;
 };
 
 SiphonError siphon_disc_open(const char* image, SiphonDisc** out) {
     if (!out) return SIPHON_ERR_IO;
     *out = NULL;
+
+    if (wiiu_disc_is_wiiu(image)) {
+        return siphon_disc_open_wiiu(image, NULL, out);
+    }
 
     GCDiscFormat fmt = gc_disc_detect_format(image);
     if (fmt == GC_FORMAT_UNKNOWN) {
@@ -331,39 +336,83 @@ SiphonError siphon_disc_open(const char* image, SiphonDisc** out) {
         gc_disc_close(disc);
         return SIPHON_ERR_IO;
     }
-    handle->disc = disc;
+    handle->gc = disc;
+    handle->wiiu = NULL;
+    *out = handle;
+    return SIPHON_OK;
+}
+
+SiphonError siphon_disc_open_wiiu(const char* image, const char* keys_path, SiphonDisc** out) {
+    if (!out || !image) return SIPHON_ERR_IO;
+    *out = NULL;
+
+    WiiUDisc* wdisc = wiiu_disc_open(image, keys_path);
+    if (!wdisc) {
+        siphon_log("Error: failed to open Wii U disc image");
+        return SIPHON_ERR_IO;
+    }
+
+    SiphonDisc* handle = (SiphonDisc*)malloc(sizeof(SiphonDisc));
+    if (!handle) {
+        wiiu_disc_close(wdisc);
+        return SIPHON_ERR_IO;
+    }
+    handle->gc = NULL;
+    handle->wiiu = wdisc;
     *out = handle;
     return SIPHON_OK;
 }
 
 void siphon_disc_close(SiphonDisc* disc) {
     if (!disc) return;
-    gc_disc_close(disc->disc);
+    if (disc->gc) gc_disc_close(disc->gc);
+    if (disc->wiiu) wiiu_disc_close(disc->wiiu);
     free(disc);
 }
 
 SiphonError siphon_disc_list(SiphonDisc* disc, SiphonEntryFn on_entry, void* data) {
     if (!disc || !on_entry) return SIPHON_ERR_IO;
-    int n = gc_disc_entry_count(disc->disc);
-    for (int i = 0; i < n; i++) {
-        const GCEntry* e = gc_disc_entry(disc->disc, i);
-        if (!e || !e->name) continue;
-        on_entry(data, e->name, (size_t)e->size, e->type == GC_ENTRY_DIR);
+    if (disc->wiiu) {
+        if (wiiu_disc_list(disc->wiiu, (WiiUEntryFn)on_entry, data) != 0) {
+            return SIPHON_ERR_IO;
+        }
+        return SIPHON_OK;
     }
-    return SIPHON_OK;
+    if (disc->gc) {
+        int n = gc_disc_entry_count(disc->gc);
+        for (int i = 0; i < n; i++) {
+            const GCEntry* e = gc_disc_entry(disc->gc, i);
+            if (!e || !e->name) continue;
+            on_entry(data, e->name, (size_t)e->size, e->type == GC_ENTRY_DIR);
+        }
+        return SIPHON_OK;
+    }
+    return SIPHON_ERR_IO;
 }
 
 SiphonError siphon_disc_read(SiphonDisc* disc, const char* path, void** out_data, size_t* out_size) {
     if (!disc || !path || !out_data || !out_size) return SIPHON_ERR_IO;
 
-    int index = gc_disc_find_file(disc->disc, path);
-    if (index < 0) {
-        siphon_log("Error: file '%s' not found in disc", path);
-        return SIPHON_ERR_NOT_FOUND;
+    if (disc->wiiu) {
+        if (wiiu_disc_read(disc->wiiu, path, out_data, out_size) != 0) {
+            siphon_log("Error: file '%s' not found or read failed in Wii U disc", path);
+            return SIPHON_ERR_NOT_FOUND;
+        }
+        return SIPHON_OK;
     }
-    if (gc_disc_read_file(disc->disc, index, out_data, out_size) != 0) {
-        siphon_log("Error: failed to read file '%s'", path);
-        return SIPHON_ERR_IO;
+
+    if (disc->gc) {
+        int index = gc_disc_find_file(disc->gc, path);
+        if (index < 0) {
+            siphon_log("Error: file '%s' not found in disc", path);
+            return SIPHON_ERR_NOT_FOUND;
+        }
+        if (gc_disc_read_file(disc->gc, index, out_data, out_size) != 0) {
+            siphon_log("Error: failed to read file '%s'", path);
+            return SIPHON_ERR_IO;
+        }
+        return SIPHON_OK;
     }
-    return SIPHON_OK;
+
+    return SIPHON_ERR_IO;
 }

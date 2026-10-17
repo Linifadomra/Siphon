@@ -27,6 +27,14 @@ int wiiu_disc_inspect(const char* path, char* game_id, size_t game_id_sz,
  */
 int wiiu_disc_extract(const char* path, const char* outdir, const char* keys_path);
 
+typedef struct WiiUDisc WiiUDisc;
+typedef void (*WiiUEntryFn)(void* data, const char* path, size_t size, int is_dir);
+
+WiiUDisc* wiiu_disc_open(const char* path, const char* keys_path);
+void wiiu_disc_close(WiiUDisc* disc);
+int wiiu_disc_list(WiiUDisc* disc, WiiUEntryFn on_entry, void* userdata);
+int wiiu_disc_read(WiiUDisc* disc, const char* path, void** out_data, size_t* out_size);
+
 #ifdef __cplusplus
 }
 #endif

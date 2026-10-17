@@ -26,17 +26,6 @@ static uint64_t wiiu_align_up(uint64_t v, uint64_t a) {
     return ((v + a - 1) / a) * a;
 }
 
-static void wiiu_trim(char* s) {
-    char* start = s;
-    while (*start == ' ' || *start == '\t' || *start == '\r' || *start == '\n') start++;
-    size_t len = strlen(start);
-    while (len > 0) {
-        char c = start[len - 1];
-        if (c == ' ' || c == '\t' || c == '\r' || c == '\n') { start[--len] = '\0'; } else break;
-    }
-    if (start != s) memmove(s, start, len + 1);
-}
-
 static int wiiu_hex16(const char* s, uint8_t out[16]) {
     if (strlen(s) != 32) return 0;
     for (int i = 0; i < 16; i++) {
@@ -394,58 +383,85 @@ typedef struct {
 
 static int wiiu_load_keys(const char* keyspath, const WiiUImage* img, WiiUChain* ch) {
     FILE* f = fopen(keyspath, "rb");
-    if (!f) return -1;
+    if (!f) {
+        siphon_log("WiiU: could not open key file: %s", keyspath);
+        return -1;
+    }
+
+    fseek(f, 0, SEEK_END);
+    long fsize = ftell(f);
+    fseek(f, 0, SEEK_SET);
+
+    char* content = (char*)malloc((size_t)fsize + 1);
+    if (!content) {
+        fclose(f);
+        return -1;
+    }
+    size_t read_bytes = fread(content, 1, (size_t)fsize, f);
+    content[read_bytes] = '\0';
+    fclose(f);
 
     uint8_t* toc = (uint8_t*)malloc(WIIU_SECTOR_SIZE);
     uint8_t* scratch = (uint8_t*)malloc(WIIU_SECTOR_SIZE);
     if (!toc || !scratch) {
-        free(toc); free(scratch); fclose(f);
+        free(toc); free(scratch); free(content);
         return -1;
     }
     int haveToc = (wiiu_read_virtual(img, WIIU_TOC_OFFSET, toc, WIIU_SECTOR_SIZE) == 0);
 
-    char line[512];
+    // Standard Wii U common key
+    static const uint8_t default_common_key[16] = {
+        0xD7, 0xB0, 0x04, 0x02, 0x65, 0x9B, 0xA2, 0xAB,
+        0xD2, 0xCB, 0x0D, 0xB2, 0x7F, 0xA2, 0xB6, 0x56
+    };
+    if (!ch->hasCommonKey) {
+        memcpy(ch->commonKey, default_common_key, 16);
+        ch->hasCommonKey = 1;
+    }
+
     int tried = 0;
-    while (fgets(line, sizeof(line), f)) {
-        char* hash = strchr(line, '#');
-        char comment[256] = {0};
-        if (hash) {
-            snprintf(comment, sizeof(comment), "%s", hash + 1);
-            *hash = '\0';
-        }
-        char hex[64];
-        snprintf(hex, sizeof(hex), "%s", line);
-        wiiu_trim(hex);
-        wiiu_trim(comment);
+    for (size_t i = 0; i + 32 <= read_bytes; i++) {
+        uint8_t k[16];
+        char candidate[33];
+        memcpy(candidate, content + i, 32);
+        candidate[32] = '\0';
 
-        if (!ch->hasCommonKey && wiiu_ci_contains(comment, "Common")) {
-            uint8_t k[16];
-            if (wiiu_hex16(hex, k)) {
-                memcpy(ch->commonKey, k, 16);
-                ch->hasCommonKey = 1;
+        if (wiiu_hex16(candidate, k)) {
+            if (i > 0) {
+                char prev = content[i - 1];
+                if ((prev >= '0' && prev <= '9') || (prev >= 'a' && prev <= 'f') || (prev >= 'A' && prev <= 'F')) continue;
             }
-            continue;
-        }
+            if (i + 32 < read_bytes) {
+                char next = content[i + 32];
+                if ((next >= '0' && next <= '9') || (next >= 'a' && next <= 'f') || (next >= 'A' && next <= 'F')) continue;
+            }
 
-        if (!ch->hasDiscKey && haveToc) {
-            uint8_t k[16];
-            if (!wiiu_hex16(hex, k)) continue;
-            tried++;
-            memcpy(scratch, toc, WIIU_SECTOR_SIZE);
-            uint8_t iv[16] = {0};
-            aes128_cbc_decrypt(k, iv, scratch, scratch, WIIU_SECTOR_SIZE);
-            if (memcmp(scratch, WIIU_TOC_SIG, 4) == 0) {
-                memcpy(ch->discKey, k, 16);
-                ch->hasDiscKey = 1;
-                siphon_log("WiiU: disc key matched after %d keys: %s (%s)", tried, hex, comment);
+            if (memcmp(k, default_common_key, 16) == 0) {
+                i += 31;
+                continue;
             }
+
+            if (!ch->hasDiscKey && haveToc) {
+                tried++;
+                memcpy(scratch, toc, WIIU_SECTOR_SIZE);
+                uint8_t iv[16] = {0};
+                aes128_cbc_decrypt(k, iv, scratch, scratch, WIIU_SECTOR_SIZE);
+                if (memcmp(scratch, WIIU_TOC_SIG, 4) == 0) {
+                    memcpy(ch->discKey, k, 16);
+                    ch->hasDiscKey = 1;
+                    siphon_log("WiiU: matched disc key from %s", keyspath);
+                    break;
+                }
+            }
+            i += 31;
         }
     }
+
+    free(content);
     free(toc);
     free(scratch);
-    fclose(f);
     if (!ch->hasDiscKey) {
-        siphon_log("WiiU: no disc key matched (tried %d keys from %s)", tried, keyspath);
+        siphon_log("WiiU: no disc key matched in %s (tested %d keys)", keyspath, tried);
     }
     return ch->hasDiscKey ? 0 : -1;
 }
@@ -753,4 +769,108 @@ int wiiu_disc_extract(const char* path, const char* outdir, const char* keys_pat
     wiiu_chain_free(&ch);
     wiiu_image_close(&img);
     return ctx.failures ? -1 : 0;
+}
+
+struct WiiUDisc {
+    WiiUImage img;
+    WiiUChain ch;
+};
+
+WiiUDisc* wiiu_disc_open(const char* path, const char* keys_path) {
+    if (!path) return NULL;
+    WiiUDisc* disc = (WiiUDisc*)calloc(1, sizeof(WiiUDisc));
+    if (!disc) return NULL;
+
+    if (wiiu_image_open(path, &disc->img) != 0) {
+        siphon_log("WiiU: failed to open %s", path);
+        free(disc);
+        return NULL;
+    }
+
+    if (wiiu_load_chain(&disc->img, keys_path, &disc->ch) != 0) {
+        siphon_log("WiiU: failed to load the game partition");
+        wiiu_image_close(&disc->img);
+        free(disc);
+        return NULL;
+    }
+
+    return disc;
+}
+
+void wiiu_disc_close(WiiUDisc* disc) {
+    if (!disc) return;
+    wiiu_chain_free(&disc->ch);
+    wiiu_image_close(&disc->img);
+    free(disc);
+}
+
+static void wiiu_list_node(const WiiUNode* n, const char* parentPath, WiiUEntryFn on_entry, void* userdata) {
+    char path[4096];
+    if (parentPath && parentPath[0]) {
+        snprintf(path, sizeof(path), "%s/%s", parentPath, n->name);
+    } else {
+        snprintf(path, sizeof(path), "%s", n->name);
+    }
+
+    on_entry(userdata, path, (size_t)n->fileSize, n->isDir);
+
+    if (n->isDir) {
+        for (uint32_t i = 0; i < n->childCount; i++) {
+            wiiu_list_node(&n->children[i], path, on_entry, userdata);
+        }
+    }
+}
+
+int wiiu_disc_list(WiiUDisc* disc, WiiUEntryFn on_entry, void* userdata) {
+    if (!disc || !on_entry) return -1;
+    for (uint32_t i = 0; i < disc->ch.fst.root.childCount; i++) {
+        wiiu_list_node(&disc->ch.fst.root.children[i], "", on_entry, userdata);
+    }
+    return 0;
+}
+
+static const WiiUNode* wiiu_find_node_by_path(const WiiUNode* parent, const char* path) {
+    while (*path == '/' || *path == '\\') path++;
+    if (!*path) return parent;
+
+    const char* slash = strchr(path, '/');
+    if (!slash) slash = strchr(path, '\\');
+
+    size_t seg_len = slash ? (size_t)(slash - path) : strlen(path);
+
+    for (uint32_t i = 0; i < parent->childCount; i++) {
+        const WiiUNode* child = &parent->children[i];
+        if (strlen(child->name) == seg_len && strncmp(child->name, path, seg_len) == 0) {
+            if (!slash) return child;
+            return wiiu_find_node_by_path(child, slash + 1);
+        }
+    }
+    return NULL;
+}
+
+int wiiu_disc_read(WiiUDisc* disc, const char* path, void** out_data, size_t* out_size) {
+    if (!disc || !path || !out_data || !out_size) return -1;
+    *out_data = NULL;
+    *out_size = 0;
+
+    const WiiUNode* node = wiiu_find_node_by_path(&disc->ch.fst.root, path);
+    if (!node || node->isDir) return -1;
+
+    if (node->contentIndex >= disc->ch.fst.contentCount) return -1;
+    const uint64_t contentOffset = disc->ch.gmContentOffset +
+                             wiiu_content_byte_offset(&disc->ch.fst.contents[node->contentIndex],
+                                                      disc->ch.fst.sectorSize);
+
+    uint8_t* buf = (uint8_t*)malloc(node->fileSize ? (size_t)node->fileSize : 1);
+    if (!buf) return -1;
+
+    if (wiiu_read_decrypted(&disc->img, contentOffset, node->fileOffset, (size_t)node->fileSize,
+                            disc->ch.titleKey, NULL, buf) != 0) {
+        free(buf);
+        return -1;
+    }
+
+    *out_data = buf;
+    *out_size = (size_t)node->fileSize;
+    return 0;
 }
