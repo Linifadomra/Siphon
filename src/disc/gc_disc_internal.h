@@ -81,6 +81,8 @@ int gc_wii_wrap(GCDisc* disc);
 void gc_wii_free(GCDisc* disc);
 
 FILE*        gc_disc_fopen(const char* path);
+void         gc_disc_mkdirs(const char* path);
+int          gc_disc_write_file(const char* path, const void* data, size_t size);
 GCDiscFormat gc_disc_detect_format(const char* path);
 GCDisc*      gc_disc_open(const char* path);
 void         gc_disc_close(GCDisc* disc);

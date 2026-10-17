@@ -13,7 +13,7 @@
     #include <strings.h>
 #endif
 
-static void mkdirs(const char* path) {
+void gc_disc_mkdirs(const char* path) {
     char tmp[4096];
     snprintf(tmp, sizeof(tmp), "%s", path);
 #ifdef _WIN32
@@ -199,10 +199,10 @@ void gc_disc_free_parsed(GCDisc* disc) {
 
 #include <errno.h>
 
-static int write_buf(const char* path, const void* data, size_t size) {
+int gc_disc_write_file(const char* path, const void* data, size_t size) {
     FILE* f = fopen(path, "wb");
     if (!f) {
-        siphon_log("write_buf fopen failed for '%s': %s", path, strerror(errno));
+        siphon_log("write %s failed: %s", path, strerror(errno));
         return -1;
     }
     int ok = (fwrite(data, 1, size, f) == size) ? 0 : -1;
@@ -233,7 +233,7 @@ int gc_disc_extract_file(GCDisc* disc, int index, const char* outputPath) {
     char* slash = strrchr(dir, '/');
     if (slash) {
         *slash = '\0';
-        mkdirs(dir);
+        gc_disc_mkdirs(dir);
     }
 
     static const size_t BUF_SIZE = 1 * 1024 * 1024;
@@ -244,7 +244,7 @@ int gc_disc_extract_file(GCDisc* disc, int index, const char* outputPath) {
 
     if (e->size <= BUF_SIZE) {
         if (disc->read(disc, (uint64_t)e->discOffset << disc->offsetShift, buf, e->size) < 0 ||
-            write_buf(outputPath, buf, e->size) < 0) {
+            gc_disc_write_file(outputPath, buf, e->size) < 0) {
             ret = -1;
         }
     } else {
@@ -315,21 +315,21 @@ int gc_disc_extract_all(GCDisc* disc, const char* outputDir) {
     char sysDir[4096], filesDir[4096];
     snprintf(sysDir, sizeof(sysDir), "%s/sys", outputDir);
     snprintf(filesDir, sizeof(filesDir), "%s/files", outputDir);
-    mkdirs(sysDir);
-    mkdirs(filesDir);
+    gc_disc_mkdirs(sysDir);
+    gc_disc_mkdirs(filesDir);
 
     char path[4096];
     snprintf(path, sizeof(path), "%s/boot.bin", sysDir);
-    if (write_buf(path, disc->boot, 0x440) < 0) return -1;
+    if (gc_disc_write_file(path, disc->boot, 0x440) < 0) return -1;
 
     snprintf(path, sizeof(path), "%s/bi2.bin", sysDir);
-    if (write_buf(path, disc->bi2, 0x2000) < 0) return -1;
+    if (gc_disc_write_file(path, disc->bi2, 0x2000) < 0) return -1;
 
     snprintf(path, sizeof(path), "%s/apploader.img", sysDir);
-    if (write_buf(path, disc->apploader, disc->apploaderSize) < 0) return -1;
+    if (gc_disc_write_file(path, disc->apploader, disc->apploaderSize) < 0) return -1;
 
     snprintf(path, sizeof(path), "%s/fst.bin", sysDir);
-    if (write_buf(path, disc->fstData, disc->fstSize) < 0) return -1;
+    if (gc_disc_write_file(path, disc->fstData, disc->fstSize) < 0) return -1;
 
     uint8_t dolHdr[0x100];
     if (disc->read(disc, disc->dolOffset, dolHdr, 0x100) < 0) return -1;
@@ -389,7 +389,7 @@ int gc_disc_extract_all(GCDisc* disc, const char* outputDir) {
             if (dirLen >= sizeof(lastDir) || strncmp(path, lastDir, dirLen) != 0 || lastDir[dirLen] != '\0') {
                 char tmp = *slash;
                 *slash = '\0';
-                mkdirs(path);
+                gc_disc_mkdirs(path);
                 snprintf(lastDir, sizeof(lastDir), "%s", path);
                 *slash = tmp;
             }
@@ -398,7 +398,7 @@ int gc_disc_extract_all(GCDisc* disc, const char* outputDir) {
         if (e->size <= BUF_SIZE) {
             uint64_t shifted = (uint64_t)e->discOffset << disc->offsetShift;
             if (disc->read(disc, shifted, buf, e->size) < 0 ||
-                write_buf(path, buf, e->size) < 0) {
+                gc_disc_write_file(path, buf, e->size) < 0) {
                 siphon_log("extract failed at %s (off=0x%" PRIx64 " sz=%u)",
                         e->name, shifted, e->size);
                 ret = -1;

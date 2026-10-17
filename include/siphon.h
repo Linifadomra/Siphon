@@ -39,7 +39,7 @@ typedef void (*SiphonLogFn)(void* userdata, const char* msg);
  */
 typedef struct {
     char game_id[8];  ///< 6-char disc ID, null-terminated
-    char format[16];  ///< "ISO/GCM", "CISO", "GCZ", "WIA", "RVZ", "WBFS"
+    char format[16];  ///< "ISO/GCM", "CISO", "GCZ", "WIA", "RVZ", "WBFS", "WUD", "WUX"
     int  entry_count; ///< Number of entries
 } SiphonDiscInfo;
 
@@ -194,6 +194,16 @@ typedef void (*SiphonEntryFn)(void* data, const char* path, size_t size, int is_
 SiphonError siphon_disc_open(const char* image, SiphonDisc** out);
 
 /**
+ * @brief Opens a Wii U disc image with keys.txt and returns a disc handle
+ *
+ * @param image The path to the Wii U disc image
+ * @param keys_path Path to keys.txt
+ * @param out A pointer to receive the handle
+ * @returns 0 if the disc opened successfully. A SiphonError otherwise.
+ */
+SiphonError siphon_disc_open_wiiu(const char* image, const char* keys_path, SiphonDisc** out);
+
+/**
  * @brief Closes a disc handle
  *
  * @param disc The handle to close
@@ -220,6 +230,24 @@ SiphonError siphon_disc_list(SiphonDisc* disc, SiphonEntryFn on_entry, void* dat
  * @returns 0 if the file opened successfuly. A SiphonError otherwise.
  */
 SiphonError siphon_disc_read(SiphonDisc* disc, const char* path, void** out_data, size_t* out_size);
+
+/**
+ * @brief Extracts a Wii U disc image to the output directory
+ *
+ * @param image The absolute path of the disc image to extract
+ * @param outdir The absolute path of the output folder dumped to
+ * @param keys_path Path to a keys.txt.
+ * @param log A log function pointer. If NULL, logs write directly to stream.
+ * @param userdata Data passed in to the log function
+ * @returns A SiphonError with the result of the extraction. 0 means it completed successfully.
+ */
+SiphonError siphon_wiiu_extract(
+    const char* image,
+    const char* outdir,
+    const char* keys_path,
+    SiphonLogFn log,
+    void* userdata
+);
 
 #ifdef __cplusplus
 }

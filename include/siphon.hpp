@@ -157,6 +157,18 @@ inline Error discOpen(const std::string& image, SiphonDisc** out) {
 }
 
 /**
+ * @brief Opens a Wii U disc and returns a disc handle
+ *
+ * @param image Path to the disc image
+ * @param keysPath Path to keys.txt
+ * @param out Disc handle
+ * @returns 0 if the disc opened successfully. A SiphonError otherwise.
+ */
+inline Error discOpenWiiU(const std::string& image, const std::string& keysPath, SiphonDisc** out) {
+    return siphon_disc_open_wiiu(image.c_str(), keysPath.c_str(), out);
+}
+
+/**
  * @brief Closes a disc handle
  *
  * @param disc The handle to close
