@@ -98,9 +98,11 @@ add_library(gc_dol STATIC
 target_include_directories(gc_dol PUBLIC include src/dol)
 target_link_libraries(gc_dol PUBLIC Confluence::confluence gc_disc)
 
+if(BUILD_SHARED_LIBS)
 set_target_properties(gc_util gc_disc PROPERTIES
     POSITION_INDEPENDENT_CODE ON
 )
+endif()
 
 add_library(siphon src/siphon.c)
 target_include_directories(siphon PUBLIC include)
